@@ -1,67 +1,1664 @@
-# 🏗️ SDAIDF Starter Template
+# Spec‑Driven AI Development Framework (SDAIDF)
+## With Privacy‑Preserving Snowflake Tooling & Test‑Driven Development
 
-**Spec-Driven AI Development Framework (SDAIDF) v2.1** - A structured, autonomous framework for Snowflake data pipeline development.
-
-## 🚀 Quick Start
-
-```bash
-# Clone and initialize
-git clone <this-repository> my-project
-cd my-project
-./setup.sh
-
-# Or use directly
-./setup.sh my-snowflake-project
-cd my-snowflake-project
-```
-
-## 📁 Structure
-
-```
-sdaidf-starter/
-├── agent/                    # Specification & orchestration
-│   ├── spec/               # Specification documents
-│   ├── research/           # Research documents  
-│   ├── plan/              # Implementation plans
-│   ├── todo/              # Task lists
-│   ├── templates/         # Additional templates
-│   ├── logs/             # Event logs
-│   └── cli/              # Agent configuration
-├── src/                   # Snowflake code
-│   ├── raw/              # Landing zone
-│   ├── transformation/    # Cleaned data
-│   └── consumption/      # Business objects
-└── tests/                # Test suites
-```
-
-## 🔄 Workflow
-
-```
-Pitch → Spec(Approved) → Research(Approved) → Plan(Approved) → Todo → Implementation
-```
-
-## 🤖 Agent Integration
-
-Designed for AI agents like:
-- **Snowflake Cortex Code CLI** (Claude Opus 4.5)
-- **Claude Code**
-- **Qwen Code**
-
-See `agent/agent-orchestrator.md` for execution flow.
-
-## 🛠️ Getting Started
-
-1. Edit `agent/pitch.md` with project details
-2. Configure `agent/cli/config.yaml` with Snowflake connection
-3. Run AI agent with orchestrator instructions
-4. Approve documents as they reach REVIEW status
-
-## 📚 Documentation
-
-- **Orchestrator**: `agent/agent-orchestrator.md`
-- **Templates**: Each template includes instructions
-- **Framework**: See template headers for usage
+**Version 2.0**  
+**Date:** February 16, 2026  
+**Author:** Tanay Lodh
 
 ---
 
-**Ready to start?** Run `./setup.sh` and begin! 🚀
+## Table of Contents
+
+1. [Introduction](#1-introduction)
+2. [Core Concepts](#2-core-concepts)
+3. [File and Directory Structure](#3-file-and-directory-structure)
+4. [Templates](#4-templates)
+5. [AI Prompts and Roles](#5-ai-prompts-and-roles)
+6. [Tooling Architecture](#6-tooling-architecture)
+7. [Planner CLI](#7-planner-cli)
+8. [Developer CLI](#8-developer-cli)
+9. [Complete Scripts](#9-complete-scripts)
+10. [Configuration Files](#10-configuration-files)
+11. [Workflow Examples](#11-workflow-examples)
+12. [Security Considerations](#12-security-considerations)
+13. [Installation and Setup](#13-installation-and-setup)
+14. [Troubleshooting](#14-troubleshooting)
+15. [Conclusion](#15-conclusion)
+
+---
+
+## 1. Introduction
+
+The Spec‑Driven AI Development Framework (SDAIDF) is a lightweight, user‑controlled framework for building **Snowflake data pipelines** with the assistance of AI agents. It is designed for individual team members, each working within a defined scope. The framework integrates a privacy‑preserving tooling layer that guarantees **no sensitive data ever reaches the AI model** while providing rich metadata (schema, statistics, inferred variant structures) for intelligent query generation.
+
+At its core, the framework embodies a **test‑driven philosophy**: every task is defined not only by its implementation details but by **executable test specifications** that must pass for the task to be considered complete. The AI generates these tests from the task description and metadata, using **synthetic data only**. During execution, the `developer` tool automatically runs the tests; success is determined by test results, not by the AI’s exit code. This approach ensures that every deliverable is verifiable and that the framework truly answers the question: **“Tell me how it works by telling me how you are testing it.”**
+
+Two AI‑assisted CLI tools drive the workflow:
+
+- **Planner** – helps create and update specification, research, scope, plan, and todo documents. It always enriches planning with live Snowflake metadata and can generate test specifications for pending tasks.
+- **Developer** – executes one pending task per session, using rich context files and launching an AI assistant pre‑loaded with task details and secure Snowflake access via a local metadata proxy. After the AI finishes, it runs the task’s tests and marks success only if all pass.
+
+All documents are plain Markdown files stored in the `./agent/` directory, except the master task list which is a JSON file (`todos/tasks.json`) for deterministic parsing. The user reviews every generated document and decides when to move forward. The framework provides templates for consistency, but the user remains in full control.
+
+### Key Features
+
+- **AI‑populated templates** – Planner calls an external AI CLI to fill templates intelligently.
+- **Scope layer** – A `scope.md` file defines a team member’s area of responsibility.
+- **Enhanced todo protocol** – Tasks are stored in `todos/` with a master JSON list and individual context files.
+- **Test‑driven tasks** – Each task’s context file includes YAML frontmatter with test specifications in a simple `sql_assertion` format.
+- **Separate test generation** – `planner generate tests` creates test specifications for pending tasks, keeping `generate todo` focused on task creation.
+- **Automated test execution** – The `developer` runs all tests after the AI completes its work; success requires all tests to pass.
+- **Per‑task test artifacts** – All test inputs, scripts, and outputs are stored under `./agent/tests/<TASK_ID>/` for traceability.
+- **Privacy‑first testing** – All tests use synthetic data generated by the AI, never touching production data. The proxy ensures no raw data leaks.
+- **Privacy‑preserving Snowflake proxy** – All data‑returning queries are intercepted locally and transformed into metadata‑only summaries; raw data never leaves the proxy.
+- **On‑demand context update** – AI can fetch and search Snowflake release notes at any time via a dedicated MCP server.
+- **Mandatory metadata enrichment** – Every plan generation automatically fetches Snowflake metadata to ground plans in real schema.
+- **Unified configuration** – All project‑specific settings live under `./agent/`, with a single source of truth for the AI command.
+- **Deterministic task selection** – The master todo is a JSON file, parsed reliably by scripts; the `planner list` command provides human‑readable views.
+- **Role‑based AI prompts** – Each step uses a dedicated prompt file defining the agent’s role, expertise, objectives, inputs, outputs, and available tools.
+
+---
+
+## 2. Core Concepts
+
+- **Specification (`spec.md`)** – Describes the business need, requirements, constraints, and success criteria.
+- **Research (`research.md`)** – Contains system analysis, data quality assessment, open questions, and risks derived from the specification. It always includes a **Discovered Schema** section populated from live Snowflake metadata.
+- **Scope (`scope.md`)** – Defines the boundaries of a team member’s work, listing in‑scope and out‑of‑scope components.
+- **Plan (`plan.md`)** – Provides a high‑level overview, directory structure, and ordered implementation steps, enriched with metadata.
+- **Master Task List (`todos/tasks.json`)** – A JSON array listing all tasks with ID, type, status, description, dependencies, and path to the detailed context file. This is the single source of truth for automation.
+- **Task Context Files** – Detailed markdown files in `todos/dev-items/` or `todos/fix-items/` that contain all information needed to implement a single task. Each file includes a **YAML frontmatter** section with test specifications.
+- **Test Specifications** – Defined in YAML format within the task context file. They use a simple `sql_assertion` type: a SQL query that returns a number of failures, compared against an expected value. All test data is synthetic.
+- **Test Artifacts (`agent/tests/`)** – Per‑task directories containing any input data, generated test scripts, and execution logs. These are created automatically during test execution.
+- **Draft Fixes (`todos/draft-fixes/`)** – Auto‑generated fix proposals created by the Developer on task failure. They include test output logs and are presented during the next `planner generate todo` merge for user review.
+- **Event Log (`event-log.md`)** – Chronological log of all Planner, Developer, proxy, and test actions.
+- **Progress (`todos/progress.md`)** – Temporary checkpoint used by the Developer to store the last completed task.
+- **Snowflake Tooling Directory (`agent/snowflake/`)** – Contains configuration, logs, metadata cache, and context files for the privacy‑preserving proxy and context servers.
+
+---
+
+## 3. File and Directory Structure
+
+```
+project-root/
+├── .git/
+├── src/                          # Snowflake objects (medallion layers)
+│   ├── bronze/                    # Raw ingestion layer (configurable naming)
+│   │   ├── tables/
+│   │   ├── views/
+│   │   ├── procedures/
+│   │   ├── tasks/
+│   │   ├── dynamic_tables/
+│   │   └── streams/
+│   ├── silver/
+│   └── gold/
+├── tests/                         # (Optional) Permanent test suites
+│   ├── bronze/
+│   ├── silver/
+│   └── gold/
+└── agent/                         # All agent-related files
+    ├── bin/                        # CLI scripts
+    │   ├── agent-config.sh
+    │   ├── planner
+    │   ├── developer
+    │   ├── ai-snowflake.sh
+    │   └── run_tests.py
+    ├── prompts/                     # Role-based AI prompts
+    │   ├── planner/
+    │   │   ├── generate-spec.md
+    │   │   ├── generate-research.md
+    │   │   ├── generate-plan.md
+    │   │   ├── generate-todo.md
+    │   │   └── generate-tests.md
+    │   └── developer/
+    │       ├── coder.md
+    │       └── tester.md
+    ├── templates/                  # Template files
+    │   ├── spec-template.md
+    │   ├── research-template.md
+    │   ├── plan-template.md
+    │   ├── scope-template.md
+    │   ├── dev-item-template.md
+    │   └── fix-item-template.md
+    ├── snowflake/                   # Snowflake tooling (proxy, context, config)
+    │   ├── bin/
+    │   │   ├── mcp_proxy.py
+    │   │   ├── context-tool-mcp.js
+    │   │   └── snowflake_context_tool.py
+    │   ├── config/
+    │   │   ├── proxy_config.yaml
+    │   │   └── connections.toml
+    │   ├── logs/
+    │   │   └── audit.log
+    │   ├── catalog/
+    │   │   └── tables/
+    │   └── context/
+    │       └── *.md
+    ├── tests/                       # Test artifacts per task
+    │   ├── DEV-001/
+    │   │   ├── input/               # Mock data (optional)
+    │   │   ├── expected/             # Expected outputs (optional)
+    │   │   ├── scripts/               # Generated test scripts
+    │   │   ├── output/                # Execution logs and results
+    │   │   └── README.md
+    │   ├── FIX-001/
+    │   └── ...
+    ├── pitch.md
+    ├── spec.md
+    ├── research.md
+    ├── scope.md
+    ├── plan.md
+    ├── todos/
+    │   ├── tasks.json                # Master task list (JSON)
+    │   ├── dev-items/
+    │   │   └── DEV-001.md
+    │   ├── fix-items/
+    │   │   └── FIX-001.md
+    │   ├── draft-fixes/
+    │   │   └── FIX-draft-20260216T1030.md
+    │   └── progress.md
+    └── event-log.md
+```
+
+**Note:** The medallion layer names are configurable. The `tests/` directory under `agent/` holds per‑task test artifacts, while the top‑level `tests/` is for permanent test suites that may be promoted after task completion.
+
+---
+
+## 4. Templates
+
+All templates reside in `./agent/templates/`. The task templates include a **YAML frontmatter** section for test specifications. The AI populates these fields based on the plan and metadata. The `depends_on` field is optional and should be added by the AI when generating tasks (it will be stored in the JSON master, but the context file may also include it for reference).
+
+### 4.1 Specification Template (`spec-template.md`)
+
+```markdown
+# SPECIFICATION
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| **Project ID** | `[PROJECT-YYYY-MM-XXX]` |
+| **Generated Date** | `YYYY-MM-DD HH:MM UTC` |
+| **Last Modified** | `YYYY-MM-DD HH:MM UTC` |
+| **Status** | `DRAFT` |
+
+## 1. Business Context
+[Describe the business need and value proposition]
+
+## 2. Scope
+**In Scope:**
+- [Item 1]
+- [Item 2]
+**Out of Scope:**
+- [Item 3]
+
+## 3. Requirements
+[Detailed functional and non‑functional requirements]
+
+## 4. Constraints
+[Technical, cost, environmental constraints]
+
+## 5. Source Systems
+[Describe source databases, tables, update frequency]
+
+## 6. Target Schema
+[Intended Snowflake objects and structure]
+
+## 7. Data Volume & Frequency
+[Expected data sizes, batch/streaming, latency requirements]
+
+## 8. Success Criteria
+[How to validate completion]
+```
+
+### 4.2 Research Template (`research-template.md`)
+
+```markdown
+# RESEARCH
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| **Linked Spec** | `spec.md (last modified: ...)` |
+| **Generated Date** | `YYYY-MM-DD HH:MM UTC` |
+| **Last Modified** | `YYYY-MM-DD HH:MM UTC` |
+| **Status** | `DRAFT` |
+
+## 1. System Analysis
+[Existing tables, views, dependencies, data lineage]
+
+## 2. Data Quality Assessment
+[Findings from data exploration: missing values, duplicates, anomalies]
+
+## 3. Discovered Schema & Statistics
+[This section is automatically populated from Snowflake metadata. 
+Include table structures, column types, statistics, and variant interface inferences.]
+
+## 4. Open Questions
+[Unresolved issues needing clarification]
+
+## 5. Risks
+[Potential technical or business risks]
+```
+
+### 4.3 Plan Template (`plan-template.md`)
+
+```markdown
+# IMPLEMENTATION PLAN
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| **Linked Research** | `research.md (last modified: ...)` |
+| **Linked Scope** | `scope.md (last modified: ...)` (if applicable) |
+| **Generated Date** | `YYYY-MM-DD HH:MM UTC` |
+| **Last Modified** | `YYYY-MM-DD HH:MM UTC` |
+| **Status** | `DRAFT` |
+
+## 1. Overview
+[Summary of what will be built, referencing specific tables and columns from metadata]
+
+## 2. Directory Structure
+[Mapping of objects to src/ subdirectories]
+
+## 3. Implementation Steps
+[Ordered list of tasks, may include dependencies; each task corresponds to a todo item]
+
+## 4. Testing Strategy
+[How each component will be tested]
+
+## 5. Rollback Plan
+[Steps to revert changes if needed]
+```
+
+### 4.4 Scope Template (`scope-template.md`)
+
+```markdown
+# SCOPE: [Title / Owner]
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| **Linked Spec** | `spec.md (last modified: ...)` |
+| **Owner** | [Team member name] |
+| **Generated Date** | `YYYY-MM-DD HH:MM UTC` |
+| **Last Modified** | `YYYY-MM-DD HH:MM UTC` |
+| **Status** | `DRAFT / ACTIVE` |
+
+## 1. Scope Description
+[Brief overview of the parts of the system this member is responsible for]
+
+## 2. Boundaries
+**In Scope:**
+- [Specific components, e.g., raw tables: raw.orders, raw.customers]
+- [Staging views: staging.stg_orders, staging.stg_customers]
+- [Any tests or quality checks for these objects]
+
+**Out of Scope:**
+- [What is explicitly excluded, e.g., consumption layer marts, orchestration]
+
+## 3. Dependencies
+[Components or tasks that are out of scope but required for this scope to function]
+
+## 4. Assumptions & Constraints
+[Any assumptions about the environment, data, or other teams’ work]
+
+## 5. Acceptance Criteria for This Scope
+[How the work within this scope will be validated]
+
+## 6. Notes
+[Additional context, links to relevant sections of spec/research, or open questions]
+```
+
+### 4.5 Development Item Template (`dev-item-template.md`)
+
+```markdown
+---
+tests:
+  - id: TC1
+    type: sql_assertion
+    description: "..."
+    query: |
+      [sql_query]
+    expected_failures: 0
+depends_on: []  # optional: list of prerequisite task IDs
+---
+
+# Development Task: {{ID}}
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| **Type** | dev |
+| **Created** | `YYYY-MM-DD HH:MM UTC` |
+| **Last Updated** | `YYYY-MM-DD HH:MM UTC` |
+| **Status** | pending |
+| **Related Plan** | `plan.md` (section/step) |
+| **Object Type** | `table` / `view` / `udf` / `procedure` / `task` |
+
+## Description
+[Brief one‑line summary of what this task accomplishes]
+
+## Prerequisites
+- [ ] Item ID(s) that must be completed before this one (if any)
+- [ ] Any external dependencies
+
+## Implementation Details
+[Step‑by‑step instructions or high‑level approach]
+
+## Acceptance Criteria
+- [ ] All tests pass
+- [ ] Code follows project conventions
+
+## Rollback
+[Steps to revert if something goes wrong]
+
+## Notes
+[Any additional context, links to documentation]
+```
+
+### 4.6 Fix Item Template (`fix-item-template.md`)
+
+```markdown
+---
+tests:
+  - id: TC1
+    type: sql_assertion
+    description: "Verify fix for issue X"
+    query: [sql_query]
+    expected_failures: 0
+depends_on: []
+---
+
+# Fix Task: {{ID}}
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| **Type** | fix |
+| **Created** | `YYYY-MM-DD HH:MM UTC` |
+| **Last Updated** | `YYYY-MM-DD HH:MM UTC` |
+| **Status** | pending |
+| **Related Plan** | `plan.md` (section/step) |
+| **Root Cause** | [Brief description of what went wrong] |
+
+## Description
+[One‑line summary of the issue]
+
+## Symptoms
+[What observable problem prompted this fix]
+
+## Affected Components
+[List of files, tables, views, or processes impacted]
+
+## Fix Steps
+[Detailed instructions to resolve the issue]
+
+## Verification
+[How to confirm the fix works – should match test cases]
+
+## Prevention
+[How to avoid this issue in the future]
+
+## Notes
+[Any additional context]
+```
+
+---
+
+## 5. AI Prompts and Roles
+
+All prompts are stored as Markdown files in `agent/prompts/`. Each prompt defines the agent’s **role**, **expertise**, **objective**, **inputs**, **outputs**, and, where applicable, **tooling specifications**. The scripts use `envsubst` to replace placeholders like `{{TASK_ID}}` with actual values before feeding the prompt to the AI.
+
+### 5.1 Planner Prompts
+
+#### 5.1.1 Generate Specification (`prompts/planner/generate-spec.md`)
+
+```markdown
+# ROLE: Data Architect
+
+You are a Data Architect responsible for translating business needs into clear, actionable specifications for data platform projects.
+
+## EXPERTISE
+You excel at:
+- Eliciting and documenting business requirements
+- Defining scope boundaries (in-scope vs. out-of-scope)
+- Articulating success criteria that are measurable and testable
+- Understanding data lifecycle from source to consumption
+- Communicating effectively with both business and technical stakeholders
+
+## OBJECTIVE
+Create a detailed specification document (`spec.md`) from a project pitch.
+
+## INPUTS
+- `pitch.md`: High-level project description, including business need, goals, and constraints.
+- Template file: `templates/spec-template.md` – structure to fill.
+
+## OUTPUT
+- `spec.md`: Completed specification document following the template.
+
+## INSTRUCTIONS
+1. Read the pitch to understand the business context, requirements, and constraints.
+2. Populate every section of the spec template with relevant, specific details.
+3. Use clear, concise language suitable for both business and technical audiences.
+4. Include measurable success criteria and clearly define in-scope vs. out-of-scope items.
+
+## CONSTRAINTS
+- Do not add any commentary outside the template.
+- Do not include implementation details (they belong in the plan).
+- Do not reference real sensitive data; use placeholders if needed.
+
+## OUTPUT FORMAT
+Output only the filled template – no markdown code fences, no extra text.
+```
+
+#### 5.1.2 Generate Research (`prompts/planner/generate-research.md`)
+
+```markdown
+# ROLE: Systems Analyst
+
+You are a Systems Analyst focused on understanding existing systems, assessing data quality, and uncovering risks to inform solution design.
+
+## EXPERTISE
+You excel at:
+- Profiling data using metadata and statistics
+- Identifying data quality issues (nulls, duplicates, anomalies)
+- Discovering schema structures and dependencies
+- Documenting findings in a clear, structured way
+- Translating technical observations into actionable insights
+
+## OBJECTIVE
+Analyze the specification and live Snowflake metadata to produce a research document (`research.md`) that describes the current system, data quality, open questions, and risks.
+
+## INPUTS
+- `spec.md`: The approved specification.
+- Metadata summary (provided inline): Schema, statistics, and inferred structures from Snowflake.
+- Template: `templates/research-template.md`
+
+## OUTPUT
+- `research.md`: Filled research template.
+
+## INSTRUCTIONS
+1. Review the specification to understand the business needs.
+2. Examine the metadata summary to discover existing tables, columns, and statistics.
+3. Identify data quality issues (nulls, duplicates, outliers) based on statistics.
+4. Note any missing information or ambiguities as open questions.
+5. Assess technical and business risks.
+6. Fill every section of the research template with factual findings; do not invent data.
+
+## CONSTRAINTS
+- Base all statements on the provided inputs.
+- Do not propose solutions; stay in analysis mode.
+- Never include raw data values – only metadata and summaries.
+
+## OUTPUT FORMAT
+Output only the filled template – no extra text.
+```
+
+#### 5.1.3 Generate Plan (`prompts/planner/generate-plan.md`)
+
+```markdown
+# ROLE: Solution Architect
+
+You are a Solution Architect who designs scalable, maintainable data solutions on Snowflake, breaking them down into implementable steps.
+
+## EXPERTISE
+You excel at:
+- Designing end-to-end data architectures (medallion, dimensional, etc.)
+- Defining directory structures and object naming conventions
+- Breaking down work into atomic, testable tasks with clear dependencies
+- Crafting testing strategies for data pipelines
+- Planning rollback and recovery procedures
+
+## OBJECTIVE
+Design a high‑level implementation plan (`plan.md`) from the research, including a directory structure, ordered steps, testing strategy, and rollback plan.
+
+## INPUTS
+- `research.md`: Analysis of current state and requirements.
+- Optional `scope.md`: If provided, only tasks within this scope should be included.
+- Template: `templates/plan-template.md`
+
+## OUTPUT
+- `plan.md`: Completed plan template.
+
+## INSTRUCTIONS
+1. Based on the research, decide what Snowflake objects (tables, views, procedures, etc.) need to be created or modified.
+2. Organize them into the `src/` directory structure (bronze/silver/gold) as appropriate.
+3. Break the work into a sequence of atomic, testable steps. Each step should correspond to one deliverable.
+4. For each step, note any dependencies (prerequisite steps).
+5. Define a testing strategy for each component.
+6. Include a rollback plan for the overall change.
+7. If a scope file is provided, ensure the plan respects its boundaries.
+
+## CONSTRAINTS
+- Do not generate actual code; keep steps high‑level.
+- Ensure steps are ordered logically for incremental delivery.
+- Avoid referencing real sensitive data.
+
+## OUTPUT FORMAT
+Output only the filled template – no extra text.
+```
+
+#### 5.1.4 Generate Todo (`prompts/planner/generate-todo.md`)
+
+```markdown
+# ROLE: Task Decomposer
+
+You are a Technical Project Manager skilled at breaking down architectural plans into discrete, trackable tasks for development.
+
+## EXPERTISE
+You excel at:
+- Identifying distinct units of work from high-level plans
+- Categorizing tasks as development (`dev`) or fixes (`fix`)
+- Writing clear, one-line summaries for task lists
+- Populating task context templates with relevant details
+- Managing task dependencies and sequencing
+
+## OBJECTIVE
+Extract actionable tasks from the implementation plan and output them as a JSON array, with each task containing an ID, type, description, dependencies, and full context file content.
+
+## INPUTS
+- `plan.md`: The implementation plan.
+- Templates:
+  - `templates/dev-item-template.md` for development tasks.
+  - `templates/fix-item-template.md` for fix tasks.
+
+## OUTPUT
+- A JSON array printed to stdout. Each object must have:
+  - `id`: a unique string like `NEW001`, `NEW002` (alphabetical for sorting).
+  - `type`: either `"dev"` or `"fix"`.
+  - `description`: a short one‑line summary.
+  - `depends_on`: an array of task IDs that must be completed before this task can start (may be empty).
+  - `context`: the full content of the task’s context file (using the appropriate template), with all sections filled from the plan. Do **not** include test specifications; leave the YAML frontmatter with `tests: []` and an empty `depends_on` (the dependencies will be stored in the JSON master).
+
+## INSTRUCTIONS
+1. Read the plan and identify each distinct piece of work.
+2. For each task, decide if it is `dev` (new object) or `fix` (remediation).
+3. Assign a temporary ID using the pattern `NEW001`, `NEW002`, … (the framework will rename later).
+4. Determine dependencies based on the plan’s step order and any explicit prerequisites.
+5. Write a short description for the master list.
+6. Create a context file by filling the relevant template:
+   - Include the task ID in the title.
+   - Fill in all metadata fields (Created date, etc.) with placeholders or logical values.
+   - Populate the description, prerequisites, implementation details, etc., based on the plan’s step.
+   - Leave the `tests:` YAML block empty and `depends_on` empty (they will be managed externally).
+7. Output only the JSON array, no other text.
+
+## CONSTRAINTS
+- Do not include any explanatory text outside the JSON.
+- Ensure each `id` is unique and follows the pattern.
+- The `context` field must be a string containing the full markdown content (including frontmatter).
+
+## OUTPUT FORMAT
+A valid JSON array, as in the example below. No trailing commas, no comments.
+
+Example:
+```json
+[
+  {
+    "id": "NEW001",
+    "type": "dev",
+    "description": "Create raw orders table in bronze layer",
+    "depends_on": [],
+    "context": "---\ntests: []\ndepends_on: []\n---\n\n# Development Task: NEW001\n\n## Metadata\n..."
+  }
+]
+```
+
+#### 5.1.5 Generate Tests (`prompts/planner/generate-tests.md`)
+
+```markdown
+# ROLE: Test Designer
+
+You are a Test Engineer specializing in data quality validation, designing test suites that verify correctness using synthetic data.
+
+## EXPERTISE
+You excel at:
+- Designing SQL assertions that catch meaningful data errors
+- Creating synthetic test data that mimics real patterns without exposing PII
+- Identifying edge cases and boundary conditions
+- Writing clear, maintainable test specifications
+- Ensuring tests are deterministic and efficient
+
+## OBJECTIVE
+Generate test specifications for a single Snowflake task. Output a YAML block containing `sql_assertion` tests that verify correctness using only synthetic data.
+
+## INPUTS
+- Task context file (content provided inline):
+  - Task ID: `{{TASK_ID}}`
+  - Task type: `{{TASK_TYPE}}`
+  - Description: `{{DESCRIPTION}}`
+  - Implementation details: `{{IMPLEMENTATION_DETAILS}}`
+- Metadata summary (provided inline): Schema and statistics of relevant tables.
+
+## OUTPUT
+- A YAML block (the list under `tests:`) printed to stdout.
+
+## INSTRUCTIONS
+1. Understand the task: what object is being created or fixed.
+2. Design 2–5 SQL assertion tests that would catch common errors:
+   - No nulls in required columns.
+   - Uniqueness of primary keys.
+   - Correct data types or transformations.
+   - Referential integrity if applicable.
+3. Each test must use the `sql_assertion` type:
+   - `id`: `TC1`, `TC2`, …
+   - `description`: what is being checked.
+   - `query`: a SQL query that returns a single number (failures).
+   - `expected_failures`: usually `0`.
+   - `setup` (optional): SQL to run before the query (e.g., to create synthetic test data).
+4. Ensure all test data is synthetic – never reference real PII or business values.
+5. Queries must be valid Snowflake SQL and efficient.
+6. Output only the YAML list, no extra text.
+
+## CONSTRAINTS
+- Do not include the outer `tests:` key; just the list items.
+- Do not add any commentary before or after the YAML.
+- Use proper indentation (2 spaces) for YAML.
+
+## OUTPUT FORMAT
+YAML list without the root `tests:` key, e.g.:
+
+```yaml
+- id: TC1
+  type: sql_assertion
+  description: "No NULL order_id"
+  query: |
+    SELECT COUNT(*) as failures
+    FROM raw_orders
+    WHERE order_id IS NULL
+  expected_failures: 0
+- id: TC2
+  ...
+```
+
+### 5.2 Developer Prompts
+
+#### 5.2.1 Coder Agent (`prompts/developer/coder.md`)
+
+```markdown
+# ROLE: Data Engineer (Implementer)
+
+You are a Data Engineer who implements Snowflake data pipelines, writing and executing SQL/code to build or modify data platform components.
+
+## EXPERTISE
+You excel at:
+- Writing production‑ready SQL and Python for Snowflake
+- Creating and modifying tables, views, procedures, and tasks
+- Understanding and applying metadata to guide implementation
+- Using version control and following coding standards
+- Debugging and troubleshooting within a metadata‑only environment
+
+## OBJECTIVE
+Implement the task described in the context file. Use the provided tools to explore the current state, generate and execute the required SQL/code in Snowflake.
+
+## INPUTS
+- Environment variables:
+  - `TASK_CONTEXT_FILE`: path to the task’s markdown file (contains description and test specs).
+  - `TASK_ID`: unique identifier for this task.
+  - `TASK_TYPE`: `"dev"` or `"fix"`.
+  - `TASK_TEST_DIR`: directory where you may write debug logs.
+  - `TASKS_JSON`: the full path to `todos/tasks.json` (optional, for context).
+- MCP tools:
+  - Snowflake proxy (metadata only): `list_tables`, `describe_table`, `execute_query` (read‑only, returns metadata/stats).
+  - Context server: `get_snowflake_context`, `search_snowflake_context`.
+
+## AVAILABLE TOOLS (Detailed)
+### Snowflake Proxy Tools
+- **`list_tables`**: Input `schema` (string) → returns array of table names.
+- **`describe_table`**: Input `schema`, `table` → returns column definitions.
+- **`execute_query`**: Input `query` (SELECT only) → returns schema, row count, and basic statistics (min/max, null counts) but **no actual rows**.
+
+### Context Server Tools
+- **`get_snowflake_context`**: Optional `version` → returns release notes Markdown.
+- **`search_snowflake_context`**: Input `query` → returns snippets.
+
+## OUTPUT
+- No specific output file; the implementation is applied to Snowflake. You may write logs to `$TASK_TEST_DIR` if helpful.
+
+## INSTRUCTIONS
+1. Read the task context file from `$TASK_CONTEXT_FILE`. Pay special attention to:
+   - The YAML frontmatter: these are the tests that will be run after you finish.
+   - The "Implementation Details" and "Acceptance Criteria" sections.
+2. Use the Snowflake proxy tools to understand the current schema and data statistics (but not raw data).
+3. Based on the task, write the necessary SQL (or Python for procedures) to create/modify the required objects.
+4. Execute your SQL using the proxy’s `execute_query` tool. Remember that `execute_query` returns only metadata – you will not see the actual rows, but you can verify schema changes by describing tables afterward.
+5. If the task involves creating files in the `src/` directory (e.g., `.sql` files), you can write them locally. The framework does not restrict file system access, but you should only modify files under `src/` that are relevant to the task.
+6. If you encounter any blocking issues, write an explanation to a file in `$TASK_TEST_DIR` and exit with a non‑zero code.
+7. Exit with code 0 when you have completed the implementation. Do **not** run the tests – they will be run automatically by the tester agent.
+
+## CONSTRAINTS
+- You will never see raw data – design your implementation to work with metadata only.
+- Do not include sensitive information in logs.
+- Ensure your implementation is idempotent where possible.
+
+## EXIT CODES
+- `0`: Implementation completed successfully.
+- `1`: Implementation failed (log reason in `$TASK_TEST_DIR`).
+```
+
+#### 5.2.2 Tester Agent (`prompts/developer/tester.md`)
+
+```markdown
+# ROLE: Test Engineer (Verifier)
+
+You are a Test Engineer responsible for executing automated test suites and validating that implemented tasks meet their quality criteria.
+
+## EXPERTISE
+You excel at:
+- Running and interpreting test results
+- Parsing structured test definitions (YAML)
+- Writing clear, detailed test execution logs
+- Identifying root causes of test failures
+- Ensuring test environments are properly set up and torn down
+
+## OBJECTIVE
+Execute the test specifications for a completed task and report results.
+
+## INPUTS
+- Environment variables:
+  - `TASK_CONTEXT_FILE`: path to the task’s markdown file (contains YAML test specs).
+  - `TASK_ID`: unique identifier.
+  - `TASK_TEST_DIR`: directory to write test outputs.
+- Test specifications are embedded in the YAML frontmatter of `$TASK_CONTEXT_FILE`.
+
+## AVAILABLE CONNECTION
+You have a **direct Snowflake connection** (bypassing the proxy) to execute test queries. This connection is configured with the same credentials as the proxy but is used only for these test queries because they return only scalar failure counts (no sensitive data).
+
+- You can execute any SQL provided in the test definitions.
+- The connection is read‑only by convention; but the tests themselves are designed to be safe.
+
+## OUTPUT
+- Write two files:
+  - `$TASK_TEST_DIR/output/run.log`: human‑readable log of test execution.
+  - `$TASK_TEST_DIR/output/results.json`: structured results as JSON.
+
+## INSTRUCTIONS
+1. Parse the YAML frontmatter from `$TASK_CONTEXT_FILE` to obtain the list of tests.
+2. For each test:
+   - If `setup` is present, execute that SQL first (using the direct Snowflake connection).
+   - Execute the assertion `query`.
+   - Capture the first column of the first row as `failures`.
+   - Compare `failures` with `expected_failures`.
+   - Record pass/fail, actual failures, and execution time.
+3. Write a detailed log to `run.log` including each test’s query and result.
+4. Write a JSON file (`results.json`) with the following structure:
+   ```json
+   {
+     "task_id": "DEV-001",
+     "timestamp": "2026-02-16T10:30:00Z",
+     "tests": [
+       {
+         "id": "TC1",
+         "passed": true,
+         "failures": 0,
+         "expected": 0,
+         "execution_time_ms": 125
+       }
+     ],
+     "summary": {
+       "total": 2,
+       "passed": 2,
+       "failed": 0
+     }
+   }```
+5. Exit with appropriate code.
+
+## CONSTRAINTS
+- Do not modify the implementation – only verify.
+- All test queries must be read‑only.
+- Continue testing even if one test fails; record all results.
+
+## EXIT CODES
+- `0`: All tests passed.
+- `1`: One or more tests failed.
+- `2`: Test execution error (e.g., unable to parse YAML, connection failure).
+```
+
+---
+
+## 6. Tooling Architecture
+
+The privacy‑preserving Snowflake tooling consists of three components running locally:
+
+- **Igloo MCP Server** – Exposes Snowflake operations (list tables, describe, execute read‑only queries) as MCP tools.
+- **Metadata Proxy (`mcp_proxy.py`)** – Sits between the AI client and Igloo. For tools configured as `data_tools` (e.g., `execute_query`), it intercepts the response, strips raw data, and replaces it with:
+  - Schema (column names, types, nullability)
+  - Statistics (row count, distinct counts, min/max, null percentages)
+  - Inferred variant schemas (TypeScript interfaces, JSON Schema, or Pydantic models) using adaptive sampling.
+- **Context MCP Server (`context-tool-mcp.js`)** – Provides tools to fetch and search Snowflake release notes (`update_snowflake_context`, `get_snowflake_context`, `search_snowflake_context`). Release notes are cached in `~/snowflake-context/releases/` and optionally copied to the project’s `agent/snowflake/context/`.
+
+All components run locally, and the AI client is configured to connect to the proxy for Snowflake tools and to the context server for release notes.
+
+For detailed configuration, see Section 10.
+
+---
+
+## 7. Planner CLI
+
+The Planner is a bash script located at `./agent/bin/planner`. It provides commands to generate and update documents, including test specifications, and to list tasks.
+
+### 7.1 Commands Overview
+
+| Command | Document / Action | Description |
+|---------|-------------------|-------------|
+| `generate spec` | `spec.md` | Creates `spec.md` from `pitch.md` using AI. |
+| `generate plan` | `research.md`, `plan.md` | Generates `research.md` from `spec.md` (enriched with Snowflake metadata), then `plan.md` from `research.md` and optional `--scope`. |
+| `generate todo` | `todos/tasks.json`, context files | Merges existing tasks with new ones from `plan.md` and includes draft fixes for user review. Writes JSON master and context files. |
+| `generate tests` | task context files | Generates test specifications for pending tasks (YAML frontmatter) using AI. |
+| `generate scope` | `scope.md` | Creates `scope.md` from `spec.md` and a focus description. |
+| `list` | – | Displays tasks from `tasks.json` in a human‑readable table. Options: `--status`, `--type`. |
+| `update <doc>` | any core doc | Opens the specified document (spec, research, plan, scope) in the editor. |
+| `show <id>` | – | Shows details of a specific task (JSON and context summary). |
+
+### 7.2 Generate Spec
+
+```
+planner generate spec [--changes <file>]
+```
+
+- Reads `pitch.md` (must exist).
+- Calls AI with the spec template and the pitch.
+- Writes result to `spec.md` (overwrites).
+- If `--changes` is provided, appends the content of that file as additional instructions.
+
+### 7.3 Generate Plan
+
+```
+planner generate plan [--scope <file>] [--changes <file>]
+```
+
+1. **Fetch Snowflake Metadata** (always attempted):
+   - Uses the proxy (via Igloo MCP) to call `list_tables` and `describe_table` for schemas mentioned in the spec or scope.
+   - Caches results in `agent/snowflake/catalog/` (refreshed if older than 24h).
+   - If metadata cannot be fetched, a warning is logged but the plan generation proceeds using only the spec (fallback).
+
+2. **Generate Research**:
+   - Reads `spec.md` and the cached metadata.
+   - Calls AI with research template, spec, and a summary of discovered schema/statistics.
+   - Writes to `research.md`.
+
+3. **Generate Plan**:
+   - Reads `research.md` and optionally the scope file (`--scope`).
+   - Calls AI with plan template, research, and scope.
+   - Writes to `plan.md`.
+
+### 7.4 Generate Todo
+
+```
+planner generate todo
+```
+
+**Steps:**
+
+1. Create a temporary merge directory.
+2. Copy existing `todos/` structure (including `tasks.json` and context files) into it.
+3. **Include draft fixes**: For each file in `todos/draft-fixes/`, prompt the user to convert it into a proper task. If accepted, create a new task object in JSON and move the file to `fix-items/`.
+4. **Generate new tasks from `plan.md`**:
+   - Call AI (Task Decomposer) to output a JSON array of new tasks (including `depends_on`).
+   - Merge with existing tasks: new tasks get `status: pending`, existing tasks keep their status.
+   - Write updated `tasks.json`.
+   - For each new task, write its context file to `dev-items/` or `fix-items/`.
+5. Present the merge directory to the user:
+   - Open the JSON in an editor? (Alternatively, the user can edit the context files directly; the JSON is regenerated on next run.)
+   - Wait for user to signal completion.
+6. Replace the real `todos/` directory with the merge directory.
+7. Log the action.
+
+### 7.5 Generate Tests
+
+```
+planner generate tests [--task <id>] [--all-pending] [--changes <file>]
+```
+
+- If `--task <id>` is given, processes only that task.
+- If `--all-pending` (default), processes all pending tasks (dev and fix).
+- `--changes` allows additional instructions.
+
+**Steps for each task:**
+1. Read the task context file.
+2. Extract description and implementation details.
+3. Fetch current metadata summary.
+4. Call AI with test designer prompt.
+5. Insert the returned YAML block into the task’s frontmatter (replacing existing `tests:`).
+
+### 7.6 Generate Scope
+
+```
+planner generate scope [--focus <text>] [--changes <file>]
+```
+
+- Reads `spec.md`.
+- Prompts for a focus description if not provided.
+- Calls AI with scope template, spec, and focus.
+- Writes to `scope.md`.
+
+### 7.7 List Tasks
+
+```
+planner list [--status pending|completed|failed] [--type dev|fix]
+```
+
+Reads `todos/tasks.json` and outputs a formatted table using `jq` and `column`.
+
+Example output:
+
+```
+ID       Type    Status     Description
+------   ------  ---------  ----------------------------------------
+DEV-001  dev     pending    Create raw orders table in bronze layer
+DEV-002  dev     pending    Create staging orders view
+FIX-001  fix     pending    Fix column mismatch in customers table
+```
+
+### 7.8 Update Document
+
+```
+planner update <doc>
+```
+
+Where `<doc>` is one of: `spec`, `research`, `plan`, `scope`. Opens the corresponding file in the editor defined by `$EDITOR`. Logs the action.
+
+### 7.9 Show Task
+
+```
+planner show <id>
+```
+
+Displays the JSON entry for the task and optionally a summary from its context file.
+
+---
+
+## 8. Developer CLI
+
+The Developer is a bash script located at `./agent/bin/developer`. It executes **one pending task per invocation** and is intended to be run in a loop (e.g., `while developer; do :; done`). After the AI session, it runs the task’s tests and determines success based on test results.
+
+### 8.1 Execution Flow
+
+1. Check that `todos/tasks.json` exists.
+2. Parse the JSON to find the **first actionable pending task**:
+   - Filter tasks with `status: pending`.
+   - Sort by priority: `fix` before `dev`.
+   - Within each priority group, preserve the order in the JSON array.
+   - From that sorted list, select the first task whose `depends_on` are all `completed`.
+3. Extract task ID, type, and context file path.
+4. Load the context file and extract YAML test specifications. If none exist, exit with error.
+5. Set environment variables for the AI session:
+   - `TASK_CONTEXT_FILE`, `TASK_ID`, `TASK_TYPE`, `PROJECT_DIR`, `SNOWFLAKE_PROXY_CONFIG`, `TASK_TEST_DIR`, `TASKS_JSON` (path to the master JSON).
+6. Launch the AI client with the coder prompt (`prompts/developer/coder.md`). The wrapper (`ai-snowflake.sh`) ensures the proxy and context servers are running.
+7. Wait for the AI client to exit.
+8. **If coder exit code ≠ 0** → log failure, exit iteration (task remains pending).
+9. **If coder exit code == 0** → run tester agent with `prompts/developer/tester.md`.
+10. **Test result handling**:
+    - If all tests pass → update `tasks.json` (set status to `completed`), log success, exit 0.
+    - If any tests fail → generate a draft fix in `draft-fixes/`, do **not** update task status, exit 3.
+    - If tester error → log and exit 4.
+
+### 8.2 Dependency‑Aware Task Selection
+
+The script uses `jq` to select the next task:
+
+```bash
+next_task=$(jq -r '
+    . as $root
+    | .tasks
+    | map(select(.status == "pending"))
+    | sort_by( if .type == "fix" then 0 else 1 end )
+    | .[]
+    | select(
+        [ .depends_on[] as $d | $root.tasks[] | select(.id == $d).status == "completed" ] | all
+      )
+    | first
+' "$TASKS_JSON")
+```
+
+If no such task exists, the script exits with a message.
+
+### 8.3 Test Artifact Handling
+
+- Before running tests, the `developer` creates a test output directory: `agent/tests/<task-id>/output/` with a timestamp.
+- It writes `run.log` and `results.json` there.
+- These artifacts are referenced in the draft fix if tests fail.
+
+### 8.4 Draft Fix Generation
+
+On failure, `developer` creates a file like `todos/draft-fixes/FIX-draft-<timestamp>.md`. The content is based on the fix template, pre‑filled with:
+- Original task ID and description.
+- Test output logs (from `output/run.log`).
+- A summary of which tests failed (parsed from `results.json`).
+- Placeholder for fix steps.
+
+During the next `planner generate todo`, the user is prompted to convert this draft into a proper task.
+
+---
+
+## 9. Complete Scripts
+
+All scripts are located in `./agent/bin/` and `./agent/snowflake/bin/`. Make them executable with `chmod +x`.
+
+### 9.1 Common Configuration (`agent-config.sh`)
+
+```bash
+#!/usr/bin/env bash
+# agent-config.sh - shared configuration for planner and developer
+
+AGENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEMPLATE_DIR="$AGENT_DIR/templates"
+PROMPT_DIR="$AGENT_DIR/prompts"
+LOG_FILE="$AGENT_DIR/event-log.md"
+EDITOR="${EDITOR:-vi}"
+
+# AI CLI configuration
+AI_CMD="qwen"          # change to your preferred AI CLI
+AI_OPTS="--quiet"      # add any necessary flags
+
+# Snowflake tooling paths
+SNOWFLAKE_DIR="$AGENT_DIR/snowflake"
+PROXY_SCRIPT="$SNOWFLAKE_DIR/bin/mcp_proxy.py"
+CONTEXT_SERVER_SCRIPT="$SNOWFLAKE_DIR/bin/context-tool-mcp.js"
+CONTEXT_TOOL_PY="$SNOWFLAKE_DIR/bin/snowflake_context_tool.py"
+
+# Test directories
+TEST_BASE="$AGENT_DIR/tests"
+
+# Function to call AI with a prompt and optional changes file
+call_ai() {
+    local prompt="$1"
+    local changes_file="${2:-}"
+    if [[ -n "$changes_file" && -f "$changes_file" ]]; then
+        prompt+="\n\nAdditional instructions:\n$(cat "$changes_file")"
+    fi
+    echo -e "$prompt" | $AI_CMD $AI_OPTS
+}
+
+# Logging function
+log() {
+    local agent="$1" action="$2" status="$3" details="$4"
+    {
+        echo ""
+        echo "**Time:** $(date -u +"%Y-%m-%d %H:%M UTC")"
+        echo "**Agent:** $agent"
+        echo "**Action:** $action"
+        echo "**Status:** $status"
+        echo "**Details:** $details"
+        echo "---"
+    } >> "$LOG_FILE"
+}
+```
+
+### 9.2 Planner Script (`planner`)
+
+```bash
+#!/usr/bin/env bash
+# planner - main planner CLI
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/agent-config.sh"
+
+usage() {
+    cat <<EOF
+Usage: planner <command> [options]
+
+Commands:
+  generate spec      Create spec.md from pitch.md (--changes <file>)
+  generate plan      Generate research.md and plan.md (--scope <file>, --changes <file>)
+  generate todo      Merge existing tasks with new ones from plan.md (includes draft fix handling)
+  generate tests     Generate test specifications for pending tasks (--task <id> or --all-pending)
+  generate scope     Create scope.md from spec.md (--focus <text>, --changes <file>)
+  list               Display tasks in a table (--status, --type)
+  update <doc>       Open document (spec|research|plan|scope) in editor
+  show <id>          Show details of a specific task
+EOF
+    exit 1
+}
+
+if [[ $# -lt 1 ]]; then usage; fi
+
+cmd="$1"; shift
+
+# ... (argument parsing and subcommand implementations as described in earlier sections)
+# (Full script would be included here; due to length, we provide the key functions)
+
+# For the complete script, refer to the framework repository.
+```
+
+*Note: The full `planner` script is too long to reproduce here, but the essential functions (metadata fetch, AI calls, JSON manipulation) are implemented as described in the documentation. The repository contains the complete, tested version.*
+
+### 9.3 Developer Script (`developer`)
+
+```bash
+#!/usr/bin/env bash
+# developer - execute one pending todo item with test verification
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/agent-config.sh"
+
+TODO_DIR="$AGENT_DIR/todos"
+TASKS_JSON="$TODO_DIR/tasks.json"
+DRAFT_DIR="$TODO_DIR/draft-fixes"
+PROGRESS_FILE="$TODO_DIR/progress.md"
+
+if [[ ! -f "$TASKS_JSON" ]]; then
+    echo "ERROR: tasks.json not found. Run 'planner generate todo' first." >&2
+    log "Developer" "check tasks" "ERROR" "tasks.json not found"
+    exit 4
+fi
+
+# Find next actionable task
+next_task=$(jq -r '
+    . as $root
+    | .tasks
+    | map(select(.status == "pending"))
+    | sort_by( if .type == "fix" then 0 else 1 end )
+    | .[]
+    | select(
+        [ .depends_on[] as $d | $root.tasks[] | select(.id == $d).status == "completed" ] | all
+      )
+    | first
+' "$TASKS_JSON")
+
+if [[ -z "$next_task" || "$next_task" == "null" ]]; then
+    echo "No actionable pending tasks."
+    log "Developer" "execute" "SKIPPED" "No actionable pending tasks"
+    exit 0
+fi
+
+# Extract fields
+id=$(echo "$next_task" | jq -r '.id')
+type=$(echo "$next_task" | jq -r '.type')
+context_file="$TODO_DIR/$([ "$type" = "dev" ] && echo "dev-items" || echo "fix-items")/$id.md"
+
+if [[ ! -f "$context_file" ]]; then
+    echo "ERROR: Context file $context_file not found for $id" >&2
+    log "Developer" "execute $id" "ERROR" "Missing context file"
+    exit 1
+fi
+
+# Parse YAML frontmatter to check for tests
+if ! grep -q '^---' "$context_file"; then
+    echo "ERROR: No test specifications found in $context_file. Run 'planner generate tests' first." >&2
+    log "Developer" "execute $id" "ERROR" "Missing test specifications"
+    exit 1
+fi
+
+# Set environment
+export TASK_CONTEXT_FILE="$context_file"
+export TASK_ID="$id"
+export TASK_TYPE="$type"
+export PROJECT_DIR="$PWD"
+export SNOWFLAKE_PROXY_CONFIG="$AGENT_DIR/snowflake/config/proxy_config.yaml"
+export TASK_TEST_DIR="$TEST_BASE/$id"
+export TASKS_JSON="$TASKS_JSON"
+mkdir -p "$TASK_TEST_DIR"/{input,expected,scripts,output}
+
+# Launch coder agent
+echo "Starting CODER agent for task $id ($type)..."
+coder_prompt=$(envsubst < "$PROMPT_DIR/developer/coder.md")
+echo "$coder_prompt" | $AI_CMD $AI_OPTS
+coder_exit=$?
+
+if [[ $coder_exit -ne 0 ]]; then
+    echo "Coder agent failed with exit code $coder_exit"
+    log "Developer" "coder $id" "FAILED" "Implementation failed with code $coder_exit"
+    exit 2
+fi
+
+# Launch tester agent
+echo "Starting TESTER agent for task $id..."
+tester_prompt=$(envsubst < "$PROMPT_DIR/developer/tester.md")
+echo "$tester_prompt" | $AI_CMD $AI_OPTS > "$TASK_TEST_DIR/output/run.log" 2>&1
+tester_exit=$?
+
+# Handle test results
+if [[ $tester_exit -eq 0 ]]; then
+    # All tests passed
+    jq --arg id "$id" '.tasks |= map(if .id == $id then .status = "completed" else . end)' \
+       "$TASKS_JSON" > tmp && mv tmp "$TASKS_JSON"
+    echo "Last completed: $id at $(date -u)" > "$PROGRESS_FILE"
+    log "Developer" "tester $id" "SUCCESS" "Tests passed"
+    exit 0
+elif [[ $tester_exit -eq 1 ]]; then
+    # Tests failed
+    draft_file="$DRAFT_DIR/FIX-draft-$(date -u +%Y%m%dT%H%M%S).md"
+    cat > "$draft_file" <<EOF
+# Fix Task Draft: $id
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| **Type** | fix |
+| **Created** | $(date -u +"%Y-%m-%d %H:%M UTC") |
+| **Status** | draft |
+| **Original Task** | $id |
+
+## Description
+Task "$id" failed during test execution.
+
+## Test Output
+\`\`\`
+$(cat "$TASK_TEST_DIR/output/run.log")
+\`\`\`
+
+## Failure Summary
+$(jq -r '.tests[] | select(.passed==false) | "- \(.id): expected \(.expected), got \(.failures)"' "$TASK_TEST_DIR/output/results.json" 2>/dev/null || echo "Could not parse results")
+
+## Suggested Fix
+[Describe steps to resolve the issue based on test failures.]
+
+## Verification
+Run tests again after fix.
+
+## Notes
+This draft was auto-generated by developer on test failure. Review and edit before including in the todo list.
+EOF
+    log "Developer" "tester $id" "FAILED" "Tests failed, draft fix created at $draft_file"
+    exit 3
+else
+    # Tester error
+    log "Developer" "tester $id" "ERROR" "Test execution failed with code $tester_exit"
+    exit 4
+fi
+```
+
+### 9.4 AI Wrapper Script (`ai-snowflake.sh`)
+
+```bash
+#!/usr/bin/env bash
+# ai-snowflake.sh - Wrapper for AI client with Snowflake proxy and context
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/agent-config.sh"
+
+# Parse arguments
+task_mode=false
+if [[ "${1:-}" == "--task" ]]; then
+    task_mode=true
+    shift
+fi
+
+# Ensure proxy and context servers are running
+PROXY_PID_FILE="$AGENT_DIR/snowflake/proxy.pid"
+if [[ -f "$PROXY_PID_FILE" ]] && kill -0 $(cat "$PROXY_PID_FILE") 2>/dev/null; then
+    echo "Proxy already running."
+else
+    echo "Starting metadata proxy..."
+    "$PROXY_SCRIPT" --config "$SNOWFLAKE_DIR/config/proxy_config.yaml" igloo-mcp --profile "${SNOWFLAKE_PROFILE:-my-profile}" &
+    echo $! > "$PROXY_PID_FILE"
+    sleep 2  # give it time to start
+fi
+
+CONTEXT_PID_FILE="$AGENT_DIR/snowflake/context.pid"
+if [[ -f "$CONTEXT_PID_FILE" ]] && kill -0 $(cat "$CONTEXT_PID_FILE") 2>/dev/null; then
+    echo "Context server already running."
+else
+    echo "Starting context MCP server..."
+    node "$CONTEXT_SERVER_SCRIPT" &
+    echo $! > "$CONTEXT_PID_FILE"
+    sleep 2
+fi
+
+# Set up environment for AI client
+if [[ "$task_mode" == true ]]; then
+    latest_context=$(ls -1 "$SNOWFLAKE_DIR/context/"*.md 2>/dev/null | sort -r | head -1)
+    if [[ -n "$latest_context" ]]; then
+        export QWEN_CONTEXT_FILE="$latest_context"
+    fi
+fi
+
+# Launch AI client
+echo "Launching AI client: $AI_CMD $AI_OPTS"
+exec $AI_CMD $AI_OPTS "$@"
+```
+
+### 9.5 Test Runner (`run_tests.py`)
+
+```python
+#!/usr/bin/env python3
+"""
+Test runner for SQL assertion tests.
+Reads YAML test specs, runs each query against Snowflake,
+compares failures to expected, and logs results.
+"""
+import argparse
+import yaml
+import json
+import sys
+import os
+from datetime import datetime
+import snowflake.connector
+
+def run_tests(yaml_str, task_id, test_dir):
+    tests = yaml.safe_load(yaml_str).get('tests', [])
+    results = []
+    all_passed = True
+
+    # Connect to Snowflake (using same config as proxy)
+    conn = snowflake.connector.connect(
+        account=os.environ['SNOWFLAKE_ACCOUNT'],
+        user=os.environ['SNOWFLAKE_USER'],
+        private_key_file=os.environ['SNOWFLAKE_PRIVATE_KEY_FILE'],
+        role=os.environ.get('SNOWFLAKE_ROLE', 'SYSADMIN'),
+        warehouse=os.environ.get('SNOWFLAKE_WAREHOUSE'),
+        database=os.environ.get('SNOWFLAKE_DATABASE'),
+        schema=os.environ.get('SNOWFLAKE_SCHEMA')
+    )
+
+    for test in tests:
+        test_id = test['id']
+        query = test['query']
+        expected = test.get('expected_failures', 0)
+        setup = test.get('setup', '')
+
+        try:
+            if setup:
+                conn.cursor().execute(setup)
+
+            cur = conn.cursor().execute(query)
+            row = cur.fetchone()
+            failures = row[0] if row else 0
+            passed = (failures == expected)
+            results.append({
+                'id': test_id,
+                'passed': passed,
+                'failures': failures,
+                'expected': expected
+            })
+            if not passed:
+                all_passed = False
+        except Exception as e:
+            results.append({
+                'id': test_id,
+                'passed': False,
+                'error': str(e)
+            })
+            all_passed = False
+
+    conn.close()
+
+    # Write results
+    with open(os.path.join(test_dir, 'output', 'results.json'), 'w') as f:
+        json.dump(results, f, indent=2)
+
+    return all_passed
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--yaml', required=True)
+    parser.add_argument('--task-id', required=True)
+    parser.add_argument('--test-dir', required=True)
+    args = parser.parse_args()
+
+    success = run_tests(args.yaml, args.task_id, args.test_dir)
+    sys.exit(0 if success else 1)
+```
+
+### 9.6 Proxy Script (`mcp_proxy.py`) and Context Server (`context-tool-mcp.js`)
+
+These scripts are unchanged from previous versions and are included in the `agent/snowflake/bin/` directory. See the framework repository for their complete source.
+
+---
+
+## 10. Configuration Files
+
+### 10.1 Proxy Configuration (`agent/snowflake/config/proxy_config.yaml`)
+
+```yaml
+data_tools:
+  - execute_query
+  - preview_table
+
+metadata:
+  statistics:
+    enabled: true
+    max_sample_size: 1000
+  variant_inference:
+    enabled: true
+    sampling_strategy: "adaptive"
+    adaptive:
+      min_samples: 5
+      max_samples: 300
+      row_count_thresholds:
+        - rows: 100
+          samples: "all"
+        - rows: 1000
+          samples: 100
+        - rows: 10000
+          samples: 200
+        - rows: null
+          samples: 300
+    output_format: "typescript"
+    include_confidence: true
+    include_warnings: true
+    max_nesting_depth: 5
+
+audit:
+  log_file: "./agent/snowflake/logs/audit.log"
+  log_transformed: true
+  log_original: false
+```
+
+### 10.2 AI Client Configuration (Example for Qwen)
+
+`~/.qwen/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "snowflake-proxy": {
+      "command": "/absolute/path/to/agent/snowflake/bin/mcp_proxy.py",
+      "args": ["--config", "/absolute/path/to/agent/snowflake/config/proxy_config.yaml", "igloo-mcp", "--profile", "my-profile"],
+      "trust": false
+    },
+    "snowflake-context": {
+      "command": "node",
+      "args": ["/absolute/path/to/agent/snowflake/bin/context-tool-mcp.js"],
+      "trust": false
+    }
+  },
+  "approvalMode": "DEFAULT"
+}
+```
+
+### 10.3 Snowflake Connections
+
+`~/.snowflake/connections.toml` or `agent/snowflake/config/connections.toml`:
+
+```toml
+default_connection_name = "my-profile"
+
+[connections.my-profile]
+account = "YOUR_ACCOUNT"
+user = "YOUR_USERNAME"
+private_key_file = "/path/to/rsa_key.p8"
+role = "SYSADMIN"
+warehouse = "YOUR_WAREHOUSE"
+database = "YOUR_DB"
+schema = "YOUR_SCHEMA"
+```
+
+---
+
+## 11. Workflow Examples
+
+### 11.1 Starting a New Project with Tests
+
+1. **Write a pitch** (`pitch.md`).
+2. **Generate specification**:
+   ```bash
+   planner generate spec
+   ```
+3. **Review and approve** `spec.md`. Edit if needed: `planner update spec`.
+4. **Generate plan** (automatically fetches metadata):
+   ```bash
+   planner generate plan
+   ```
+5. **Review `research.md` and `plan.md`**. Edit if needed.
+6. **Generate todo list**:
+   ```bash
+   planner generate todo
+   ```
+   The AI creates initial tasks and writes them to `tasks.json` and context files. The user is prompted to review and approve the merge.
+7. **Generate tests for all pending tasks**:
+   ```bash
+   planner generate tests --all-pending
+   ```
+   The AI creates test specifications in each task’s context file.
+8. **Review the tests** – open any task context file and edit the YAML if needed.
+9. **View current tasks**:
+   ```bash
+   planner list
+   ```
+10. **Start development loop**:
+    ```bash
+    while developer; do :; done
+    ```
+    This runs tasks one by one, respecting dependencies. For each task, the coder agent is launched, then the tester agent. If all tests pass, the task is marked completed. If any test fails, a draft fix is created.
+
+### 11.2 Handling a Fix with Drafts
+
+- A task fails; `developer` creates a draft fix in `todos/draft-fixes/` containing test output.
+- The user runs `planner generate todo` again. The script detects the draft fix and prompts:
+  ```
+  Found draft fix FIX-draft-20260216T1030.md. Convert to task? (y/n/edit)
+  ```
+- If the user chooses `y`, they are asked for a new task ID (e.g., `FIX-002`) and dependencies. The draft is moved to `fix-items/` and a new entry is added to `tasks.json`.
+- After the merge, the fix task is now in the master list and will be picked up next by `developer`.
+
+### 11.3 Team Member with Scope
+
+1. **Team lead creates `spec.md`**.
+2. **Member defines their scope**:
+   ```bash
+   planner generate scope --focus "ingestion layer for orders and customers"
+   ```
+   Edit `scope.md` if needed.
+3. **Generate scoped plan** (with metadata):
+   ```bash
+   planner generate plan --scope scope.md
+   ```
+4. **Generate todo** (only tasks within scope):
+   ```bash
+   planner generate todo
+   ```
+5. **Generate tests** for those tasks:
+   ```bash
+   planner generate tests --all-pending
+   ```
+6. **Execute tasks** with `while developer; do :; done`.
+
+### 11.4 Requirements Change
+
+1. **Update specification**:
+   ```bash
+   planner update spec
+   ```
+2. **Regenerate plan** (with fresh metadata):
+   ```bash
+   planner generate plan --scope scope.md --changes change-notes.txt
+   ```
+3. **Review new research/plan**.
+4. **Regenerate todo**:
+   ```bash
+   planner generate todo
+   ```
+   Existing pending tasks and draft fixes are combined with new ones; user reviews and approves.
+5. **Regenerate tests** for new or changed tasks:
+   ```bash
+   planner generate tests --all-pending
+   ```
+6. **Continue development** with the loop.
+
+---
+
+## 12. Security Considerations
+
+| Concern | Mitigation |
+|---------|------------|
+| **Sensitive data exposure to AI models** | Proxy strips raw data from all responses of data‑returning tools. AI never sees row values. |
+| **Test data leakage** | All test data is generated by the AI and is synthetic; no real PII or business data is used. |
+| **Snowflake credentials** | Use key‑pair authentication; store private keys with `chmod 400`. Project‑specific configs can be used per team. |
+| **Destructive operations** | Igloo blocks `DROP`, `DELETE`, `TRUNCATE`, `ALTER` by default. The proxy does not modify requests. |
+| **AI tool approval** | Set `trust: false` and `approvalMode: DEFAULT` to require confirmation for every tool call. |
+| **MCP server trust** | Do **not** set `trust: true` for any MCP server unless you fully control it. |
+| **Least privilege** | Use a Snowflake role with only necessary permissions (e.g., `SYSADMIN` for data work, not `ACCOUNTADMIN`). |
+| **Audit trail** | All transformations are logged locally in `agent/snowflake/logs/audit.log` and summarised in `event-log.md`. Test runs are also logged. |
+| **Original data logging** | The proxy is configured to **never** log original data; only transformed metadata is recorded if `log_transformed: true`. |
+
+**Additional Hardening:**
+- Consider a dedicated Snowflake role for AI development, e.g., `AI_ANALYST`, with read‑only access to required schemas.
+- Rotate keys periodically.
+- Keep all software updated.
+
+---
+
+## 13. Installation and Setup
+
+### 13.1 Prerequisites
+
+- **Bash 4+**
+- **jq** – for JSON parsing in `generate todo` and `developer`
+- **Python 3.8+** (for proxy, context tool, and test runner)
+- **Node.js 18+** (for context MCP server)
+- **Snowflake CLI** (`pip install snowflake-cli-labs`)
+- **Igloo MCP** (`pip install igloo-mcp`)
+- **Additional Python packages**: `pyyaml`, `snowflake-connector-python`, `mcp`, `sqlparse`, `jsonschema`, `pydantic`, `requests`, `beautifulsoup4`
+- **An AI CLI** (e.g., Qwen Code, Claude Code) installed and accessible in `PATH`
+- **Optional**: `git` for version control
+
+### 13.2 Installation Steps
+
+1. **Create your project repository** and navigate to it.
+2. **Create the `agent/` directory structure** as shown in Section 3.
+3. **Copy all templates** from Section 4 into `agent/templates/`.
+4. **Copy all prompts** from Section 5 into `agent/prompts/planner/` and `agent/prompts/developer/`.
+5. **Copy the bash scripts** from Section 9 into `agent/bin/` and `agent/snowflake/bin/`.
+6. **Make scripts executable**:
+   ```bash
+   chmod +x agent/bin/* agent/snowflake/bin/*
+   ```
+7. **Configure AI CLI** in `agent/bin/agent-config.sh`:
+   - Set `AI_CMD` to your AI CLI command.
+   - Set `AI_OPTS` if needed.
+8. **Create Snowflake connection profile** in `~/.snowflake/connections.toml` (or copy to `agent/snowflake/config/connections.toml`).
+9. **Create proxy configuration** in `agent/snowflake/config/proxy_config.yaml` (see Section 10.1).
+10. **Configure your AI client** (Qwen, Claude, etc.) to use the MCP servers as shown in Section 10.2.
+11. **Add `agent/bin` to your `PATH`** for convenience, or run scripts directly.
+
+### 13.3 Testing
+
+- Run `planner generate spec` with a sample `pitch.md` to verify AI integration.
+- Run `planner generate tests --all-pending` after creating tasks to ensure test generation works.
+- Run `developer` (with a pending task) to ensure it launches the AI, runs tests, and logs correctly.
+
+---
+
+## 14. Troubleshooting
+
+| Problem | Likely Cause | Solution |
+|---------|--------------|----------|
+| `planner generate plan` doesn't fetch metadata | igloo-mcp not installed or no connection profile | Install igloo-mcp and set `SNOWFLAKE_PROFILE`. Check network. |
+| Proxy starts but AI client doesn't connect | MCP server paths incorrect | Use absolute paths in client config; check `trust` settings. |
+| No metadata transformation | Tool not in `data_tools` list | Add tool name to `proxy_config.yaml`. |
+| Variant inference returns nothing | No variant data or sampling failed | Check logs; increase sample size or disable variant inference temporarily. |
+| `planner generate tests` produces invalid YAML | AI output not conforming | Check AI prompt; manually edit YAML. Use `--changes` to guide AI. |
+| Tests fail even though AI said it's done | Tests are stricter than AI assumed | Review test output in `agent/tests/<id>/output/run.log`; adjust tests or fix code. |
+| No tests generated for a task | Task context file missing YAML block | Run `planner generate tests --task <id>`. |
+| `developer` exits with code 3 but no draft fix | Test runner failed to write draft | Check permissions on `draft-fixes/`; verify Python test runner works. |
+| Draft fixes not appearing in `generate todo` | No draft files in `todos/draft-fixes/` | Ensure `developer` created them on failure. |
+| Permission denied for Snowflake | Role missing grants | Verify `SHOW GRANTS TO ROLE SYSADMIN` includes necessary privileges. |
+| Task selection gets stuck | Dependencies not satisfied or JSON corrupted | Run `planner list` to see task statuses; manually update JSON if needed. |
+
+---
+
+## 15. Conclusion
+
+The Spec‑Driven AI Development Framework provides a secure, metadata‑enriched, and test‑driven environment for AI‑assisted Snowflake development. By combining clear documentation templates, a robust todo system based on JSON, privacy‑preserving tooling, and **automated test execution** with separate coder and tester agents, it empowers individual team members to work efficiently within their scope while maintaining full control over the process and guaranteeing that sensitive data never reaches the AI.
+
+The framework is adaptable: you can modify templates, extend the bash scripts, or integrate different AI backends. The mandatory metadata enrichment ensures that plans are grounded in real schema, and the test‑driven approach guarantees that every deliverable is verifiable. With deterministic task selection and a user‑friendly `planner list` command, the framework now fully embodies the philosophy: **“Tell me how it works by telling me how you are testing it.”**
+
+For questions or contributions, please contact [your support email].
+
+---
+
+*Document version 2.0 – February 16, 2026*
