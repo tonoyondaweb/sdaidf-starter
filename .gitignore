@@ -1,4 +1,3 @@
-cat > .gitignore << 'EOF'
 # Snowflake
 *.sql~
 *.snowsql
@@ -53,4 +52,16 @@ agent/backups/*
 .env
 .env.local
 .secrets/
-EOF
+
+# Directories to exclude from git push
+.opencode/node_modules/
+.opencode/.config/
+.opencode/.local/
+.opencode/.cache/
+node_modules/
+dist/
+build/
+
+# Allow plugins directory but exclude other .opencode internals
+!.opencode/plugins/
+
