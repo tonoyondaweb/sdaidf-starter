@@ -5,14 +5,14 @@ import { classifyQuery, redactJsonResult, createExclusionChecker, extractObjectN
 import { executeSQL } from '../command-executor.js';
 
 const ExecuteSQLSchema = z.object({
-  query: z.string(),
+  query: z.string().min(1),
   connection: z.string().optional(),
 });
 
 const ExecuteScalarSchema = z.object({
-  query: z.string(),
+  query: z.string().min(1),
   connection: z.string().optional(),
-  limit: z.number().default(100),
+  limit: z.number().min(1).default(100),
 });
 
 function createErrorResponse(error: string, message: string, code: string): ErrorResponse {

@@ -43,8 +43,8 @@ const DescribeObjectSchema = z.object({
 });
 
 const GetDDLSchema = z.object({
-  objectType: z.string().describe('Type of object (TABLE, VIEW, PROCEDURE, FUNCTION, etc.)'),
-  objectName: z.string().describe('Name of the object'),
+  objectType: z.string().min(1).describe('Type of object (TABLE, VIEW, PROCEDURE, FUNCTION, etc.)'),
+  objectName: z.string().min(1).describe('Name of the object'),
   database: z.string().optional().describe('Database name'),
   schema: z.string().optional().describe('Schema name'),
   connection: z.string().optional().describe('Connection name from snow CLI config'),

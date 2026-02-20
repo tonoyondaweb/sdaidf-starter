@@ -28,6 +28,16 @@ export function redactJsonResult(jsonString: string): string {
   try {
     const parsed = JSON.parse(jsonString);
     
+    if (parsed === null) {
+      return JSON.stringify({
+        metadata: {
+          columns: [],
+          rowCount: 0,
+        },
+        data: [],
+      });
+    }
+    
     if (Array.isArray(parsed)) {
       return JSON.stringify({
         metadata: {

@@ -37,11 +37,32 @@ export function createExclusionChecker(patterns: (RegExp | string)[], objectType
 export function extractObjectNames(query: string): string[] {
   const objectNames: string[] = [];
   
-  const fromMatch = query.matchAll(/FROM\s+(?:(?:JOIN\s+)?(?:INNER|LEFT|RIGHT|OUTER|FULL)?\s+)?([a-zA-Z0-9_."]+)/gi);
+  // Extract main table from FROM clause
+  const fromMatch = query.matchAll(/FROM\s+([a-zA-Z0-9_."`]+)/gi);
   for (const match of fromMatch) {
     const name = match[1].replace(/[`"]/g, '').trim();
     if (name && !name.startsWith('(')) {
       objectNames.push(name);
+    }
+  }
+  
+  // Extract tables from all JOIN types (INNER, LEFT, RIGHT, OUTER, FULL OUTER)
+  const joinPatterns = [
+    /JOIN\s+([a-zA-Z0-9_."`]+)/gi,
+    /INNER\s+JOIN\s+([a-zA-Z0-9_."`]+)/gi,
+    /LEFT\s+JOIN\s+([a-zA-Z0-9_."`]+)/gi,
+    /RIGHT\s+JOIN\s+([a-zA-Z0-9_."`]+)/gi,
+    /OUTER\s+JOIN\s+([a-zA-Z0-9_."`]+)/gi,
+    /FULL\s+OUTER\s+JOIN\s+([a-zA-Z0-9_."`]+)/gi,
+  ];
+  
+  for (const pattern of joinPatterns) {
+    const joinMatch = query.matchAll(pattern);
+    for (const match of joinMatch) {
+      const name = match[1].replace(/[`"]/g, '').trim();
+      if (name) {
+        objectNames.push(name);
+      }
     }
   }
   
@@ -55,6 +76,14 @@ export function extractObjectNames(query: string): string[] {
   
   const tableMatch = query.matchAll(/(?:CREATE|ALTER|DROP)\s+TABLE\s+([a-zA-Z0-9_."]+)/gi);
   for (const match of tableMatch) {
+    const name = match[1].replace(/[`"]/g, '').trim();
+    if (name) {
+      objectNames.push(name);
+    }
+  }
+  
+  const updateMatch = query.matchAll(/UPDATE\s+([a-zA-Z0-9_."]+)/gi);
+  for (const match of updateMatch) {
     const name = match[1].replace(/[`"]/g, '').trim();
     if (name) {
       objectNames.push(name);
