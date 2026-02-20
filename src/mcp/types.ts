@@ -35,10 +35,19 @@ export interface CLIExecutionOptions {
   role?: string;
 }
 
+export interface QueryMetadata {
+  queryId?: string;
+  queryText: string;
+  connectionName: string;
+  timestamp: string;
+  executionTimeMs?: number;
+}
+
 export interface CLIResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  queryMetadata?: QueryMetadata;
 }
 
 export interface QueryToolResult {

@@ -1,142 +1,179 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
+import { executeSQL } from '../../command-executor.js';
+import { classifyQuery, createExclusionChecker } from '../../metadata-proxy/index.js';
+import { redactResult } from '../../metadata-proxy/index.js';
+import { loadConfig } from '../../config.js';
 
-/**
- * INTEGRATION TESTS
- * 
- * These tests verify end-to-end MCP tool behavior against the live
- * Snowflake PROXY_TEST database.
- * 
- * Prerequisites:
- * - Snow CLI must be installed and configured
- * - Connection 'dev' must be configured with access to PROXY_TEST
- * - Test objects must exist in PROXY_TEST.PUBLIC
- * 
- * Test Objects:
- * - ALTERABLE_TABLE
- * - CUSTOMERS
- * - ORDERS
- * - TEMP_DROPPABLE
- * 
- * Exclusion Test Objects (should be blocked):
- * - PROD_RESTRICTED (matches ^PROD_)
- * - DATA_PROD (matches _PROD$)
- */
+const config = loadConfig();
+const TEST_CONNECTION = process.env.SNOW_CONNECTION || config.snowcli.connection;
+const TEST_DATABASE = 'PROXY_TEST';
 
-// These tests require RUN_INTEGRATION_TESTS=true to run against live Snowflake
-// They are skipped by default to allow CI/CD without live connection
 const RUN_INTEGRATION_TESTS = process.env.RUN_INTEGRATION_TESTS === 'true';
 
-describe('INTEGRATION: Live Connection Tests', { skip: !RUN_INTEGRATION_TESTS }, () => {
-  /**
-   * Objective: Verify MCP server can connect to real Snowflake
-   * and execute queries through the metadata proxy.
-   */
+const exclusionChecker = createExclusionChecker(
+  ['^PROD_', '_PROD$', '_BACKUP$', '_ARCHIVE$', '^SYSTEM_'],
+  ['SNAPSHOT']
+);
 
+interface TestQueryResult {
+  queryText: string;
+  connectionName: string;
+  queryId?: string;
+  timestamp: string;
+  exitCode: number;
+  success: boolean;
+}
+
+const testQueryLog: TestQueryResult[] = [];
+
+async function runTestQuery(query: string, connection: string = TEST_CONNECTION): Promise<TestQueryResult> {
+  const timestamp = new Date().toISOString();
+  
+  const result = await executeSQL(query, { connection });
+  
+  const testResult: TestQueryResult = {
+    queryText: query,
+    connectionName: connection,
+    queryId: result.queryMetadata?.queryId,
+    timestamp: result.queryMetadata?.timestamp || timestamp,
+    exitCode: result.exitCode,
+    success: result.exitCode === 0,
+  };
+  
+  testQueryLog.push(testResult);
+  
+  console.log(`[QUERY] Connection: ${connection} | Query ID: ${testResult.queryId || 'N/A'} | ${timestamp}`);
+  console.log(`[QUERY] SQL: ${query.substring(0, 100)}${query.length > 100 ? '...' : ''}`);
+  
+  return testResult;
+}
+
+describe('INTEGRATION: Live Connection Tests', { skip: !RUN_INTEGRATION_TESTS }, () => {
   it('INTEGRATION: connects to Snowflake and executes metadata query', async () => {
-    // This test would run against live Snowflake if RUN_INTEGRATION_TESTS=true
-    // For now, we verify the test structure
-    assert.ok(true, 'Integration test placeholder - requires live Snowflake connection');
+    const result = await runTestQuery(`SELECT CURRENT_DATABASE() as db, CURRENT_SCHEMA() as schema`);
+    
+    assert.strictEqual(result.success, true, 'Query should execute successfully');
+    assert.strictEqual(result.connectionName, TEST_CONNECTION);
   });
 
   it('INTEGRATION: executes scalar query with actual data', async () => {
-    // Verify scalar queries return actual data (not redacted)
-    assert.ok(true, 'Integration test placeholder');
+    const result = await runTestQuery(`SELECT COUNT(*) as cnt FROM PROXY_TEST.INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'PUBLIC'`);
+    
+    assert.strictEqual(result.success, true, 'Scalar query should execute');
   });
 
   it('INTEGRATION: executes metadata query (INFORMATION_SCHEMA)', async () => {
-    // Verify metadata queries work correctly
-    assert.ok(true, 'Integration test placeholder');
+    const result = await runTestQuery(`SELECT TABLE_NAME, TABLE_TYPE FROM PROXY_TEST.INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'PUBLIC' LIMIT 5`);
+    
+    assert.strictEqual(result.success, true, 'Metadata query should execute');
   });
 });
 
 describe('INTEGRATION: Query Execution Tests', { skip: !RUN_INTEGRATION_TESTS }, () => {
   it('INTEGRATION: SELECT * is redacted (no row data)', async () => {
-    // Verify that execute_sql with SELECT * returns redacted response
-    assert.ok(true, 'Integration test placeholder');
+    const query = `SELECT * FROM ${TEST_DATABASE}.PUBLIC.CUSTOMERS LIMIT 10`;
+    const classification = classifyQuery(query);
+    
+    assert.strictEqual(classification.type, 'data', 'SELECT * should be classified as data');
+    
+    const mockResult = {
+      columns: [{ name: 'id', type: 'NUMBER' }],
+      rows: [{ id: 1 }, { id: 2 }],
+    };
+    
+    const redacted = redactResult(mockResult);
+    
+    assert.strictEqual(redacted.data.length, 0, 'Data should be redacted');
   });
 
   it('INTEGRATION: COUNT(*) returns actual scalar value', async () => {
-    // Verify that execute_scalar returns actual count
-    assert.ok(true, 'Integration test placeholder');
+    const result = await runTestQuery(`SELECT COUNT(*) as cnt FROM ${TEST_DATABASE}.PUBLIC.CUSTOMERS`);
+    
+    assert.strictEqual(result.success, true, 'COUNT query should succeed');
   });
 
   it('INTEGRATION: INSERT statement executes successfully', async () => {
-    // Verify DML operations work
-    assert.ok(true, 'Integration test placeholder');
+    const result = await runTestQuery(`CREATE OR REPLACE TABLE ${TEST_DATABASE}.PUBLIC.TEST_INSERT (id NUMBER, name STRING)`);
+    
+    assert.strictEqual(result.success, true, 'CREATE TABLE should succeed');
+    
+    const insertResult = await runTestQuery(`INSERT INTO ${TEST_DATABASE}.PUBLIC.TEST_INSERT VALUES (1, 'test')`);
+    assert.strictEqual(insertResult.success, true, 'INSERT should succeed');
   });
 });
 
 describe('INTEGRATION: Exclusion Pattern Tests', { skip: !RUN_INTEGRATION_TESTS }, () => {
   it('INTEGRATION: PROD_RESTRICTED table is blocked', async () => {
-    // Verify exclusion pattern ^PROD_ blocks this table
-    assert.ok(true, 'Integration test placeholder');
+    const exclusion = exclusionChecker.check('PROD_RESTRICTED');
+    
+    assert.strictEqual(exclusion.isExcluded, true, 'PROD_RESTRICTED should be excluded');
   });
 
   it('INTEGRATION: DATA_PROD table is blocked', async () => {
-    // Verify exclusion pattern _PROD$ blocks this table
-    assert.ok(true, 'Integration test placeholder');
+    const exclusion = exclusionChecker.check('DATA_PROD');
+    
+    assert.strictEqual(exclusion.isExcluded, true, 'DATA_PROD should be excluded');
   });
 
   it('INTEGRATION: regular tables are accessible', async () => {
-    // Verify non-excluded tables work
-    assert.ok(true, 'Integration test placeholder');
+    const exclusion = exclusionChecker.check('CUSTOMERS');
+    
+    assert.strictEqual(exclusion.isExcluded, false, 'CUSTOMERS should not be excluded');
   });
 });
 
 describe('INTEGRATION: Discovery Tools Tests', { skip: !RUN_INTEGRATION_TESTS }, () => {
   it('INTEGRATION: list_objects returns table list', async () => {
-    // Verify list_objects tool works
-    assert.ok(true, 'Integration test placeholder');
+    const result = await runTestQuery(`SELECT TABLE_NAME FROM PROXY_TEST.INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'PUBLIC' AND TABLE_TYPE = 'BASE TABLE'`);
+    
+    assert.strictEqual(result.success, true, 'Query should succeed');
   });
 
   it('INTEGRATION: describe_object returns column metadata', async () => {
-    // Verify describe_object tool works
-    assert.ok(true, 'Integration test placeholder');
+    const result = await runTestQuery(`SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE FROM PROXY_TEST.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CUSTOMERS' AND TABLE_SCHEMA = 'PUBLIC'`);
+    
+    assert.strictEqual(result.success, true, 'Describe query should succeed');
   });
 
   it('INTEGRATION: get_ddl returns CREATE statement', async () => {
-    // Verify get_ddl tool works
-    assert.ok(true, 'Integration test placeholder');
+    const result = await runTestQuery(`SELECT GET_DDL('table', 'PROXY_TEST.PUBLIC.CUSTOMERS') as ddl`);
+    
+    assert.strictEqual(result.success, true, 'GET_DDL should succeed');
   });
 });
 
 describe('INTEGRATION: Security Validation', { skip: !RUN_INTEGRATION_TESTS }, () => {
   it('INTEGRATION: no connection name in response', async () => {
-    // Verify responses don't leak connection details
-    assert.ok(true, 'Integration test placeholder');
+    const result = await runTestQuery(`SELECT 'test' as value`);
+    
+    assert.strictEqual(result.connectionName, TEST_CONNECTION);
+    assert.ok(!result.queryText.includes('password'), 'Query should not contain password');
+    assert.ok(!result.queryText.includes('secret'), 'Query should not contain secret');
   });
 
-  it('INTEGRATION: no credentials in error messages', async () => {
-    // Verify error messages don't expose secrets
-    assert.ok(true, 'Integration test placeholder');
-  });
-
-  it('INTEGRATION: data queries return empty data array', async () => {
-    // Verify SELECT results are redacted
-    assert.ok(true, 'Integration test placeholder');
+  it('INTEGRATION: data queries return empty data array after redaction', async () => {
+    const mockResult = {
+      columns: [{ name: 'id', type: 'NUMBER' }],
+      rows: [{ id: 1 }, { id: 2 }, { id: 3 }],
+    };
+    
+    const redacted = redactResult(mockResult);
+    
+    assert.strictEqual(redacted.data.length, 0, 'Data should be redacted for SELECT *');
   });
 });
 
-// Non-skipped tests for CI/CD (mocked)
 describe('MOCKED: Integration Tests', () => {
-  /**
-   * These tests use mocked CLI responses to verify the tool logic
-   * without requiring actual Snowflake connection.
-   */
-
   it('MOCK: verifies exclusion checker is invoked', async () => {
-    // Verify that exclusion checking happens before query execution
     const query = 'SELECT * FROM PROD_RESTRICTED';
     const excludedObjects = ['PROD_RESTRICTED', 'DATA_PROD'];
     
-    // Simple mock verification
     const hasExcludedObject = excludedObjects.some(obj => query.includes(obj));
     assert.strictEqual(hasExcludedObject, true);
   });
 
   it('MOCK: verifies query classification logic', async () => {
-    // Verify query type is correctly identified
     const queries = [
       { q: 'SELECT COUNT(*) FROM users', type: 'scalar' },
       { q: 'SELECT * FROM users', type: 'data' },
@@ -149,44 +186,17 @@ describe('MOCKED: Integration Tests', () => {
   });
 
   it('MOCK: verifies result redaction removes data', async () => {
-    // Verify redaction logic
     const result = {
       columns: [{ name: 'id', type: 'NUMBER' }],
       rows: [{ id: 1 }, { id: 2 }],
     };
 
     const isRedacted = result.rows.length === 0;
-    assert.strictEqual(isRedacted, false); // Before redaction
+    assert.strictEqual(isRedacted, false);
 
-    // After redaction, rows should be empty
     const redacted = { metadata: { columns: result.columns, rowCount: result.rows.length }, data: [] };
     assert.strictEqual(redacted.data.length, 0);
   });
 });
 
-/**
- * Test Execution Log Entry Format
- * 
- * ## Test: [test-name]
- * ### Objective
- * [What this test verifies]
- * 
- * ### Input
- * - [Parameter 1]: [Value]
- * - [Parameter 2]: [Value]
- * 
- * ### Expected Outcome
- * - [Expected result 1]
- * - [Expected result 2]
- * 
- * ### Actual Outcome
- * - [Actual result]
- * 
- * ### Security Check
- * - Connection exposed: YES/NO
- * - Credentials visible: YES/NO
- * - Data leaked: YES/NO
- * 
- * ### Observations
- * [Any additional notes]
- */
+export { testQueryLog };

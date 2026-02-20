@@ -13,7 +13,7 @@ exclusions:
     - "SNAPSHOT"
 
 snowcli:
-  connection: "dev"
+  connection: ""
   defaults:
     warehouse: "COMPUTE_WH"
     role: "SYSADMIN"

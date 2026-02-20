@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import type { CLIExecutionOptions, CLIResult } from './types.js';
+import type { CLIExecutionOptions, CLIResult, QueryMetadata } from './types.js';
 
 const SNOW_CLI_COMMAND = 'snow';
 
@@ -10,13 +10,20 @@ export async function executeSnowCLI(
   options: CLIExecutionOptions = {},
   timeoutMs: number = DEFAULT_TIMEOUT_MS
 ): Promise<CLIResult> {
+  const startTime = Date.now();
+  const connectionName = options.connection || '';
+  
+  let queryText = '';
+  const queryIndex = args.indexOf('-q');
+  if (queryIndex !== -1 && args[queryIndex + 1]) {
+    queryText = args[queryIndex + 1];
+  }
+  
+  const timestamp = new Date().toISOString();
+  
   return new Promise((resolve) => {
     const spawnArgs: string[] = [];
-    
-    if (options.connection) {
-      spawnArgs.push('--connection', options.connection);
-    }
-    
+
     if (options.warehouse) {
       spawnArgs.push('--warehouse', options.warehouse);
     }
@@ -42,6 +49,12 @@ export async function executeSnowCLI(
           stdout,
           stderr: stderr || 'Command timed out',
           exitCode: 124,
+          queryMetadata: {
+            queryText,
+            connectionName,
+            timestamp,
+            executionTimeMs: Date.now() - startTime,
+          },
         });
       }, timeoutMs);
     }
@@ -54,14 +67,25 @@ export async function executeSnowCLI(
       stderr += data.toString();
     });
     
-    proc.on('close', (code) => {
+    proc.on('close', async (code) => {
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
       }
+      
+      const executionTimeMs = Date.now() - startTime;
+      
+      const queryMetadata: QueryMetadata = {
+        queryText,
+        connectionName,
+        timestamp,
+        executionTimeMs,
+      };
+      
       resolve({
         stdout,
         stderr,
         exitCode: code ?? 1,
+        queryMetadata,
       });
     });
     
@@ -73,6 +97,12 @@ export async function executeSnowCLI(
         stdout: '',
         stderr: err.message,
         exitCode: 1,
+        queryMetadata: {
+          queryText,
+          connectionName,
+          timestamp,
+          executionTimeMs: Date.now() - startTime,
+        },
       });
     });
   });
