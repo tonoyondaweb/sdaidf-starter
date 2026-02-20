@@ -37,26 +37,26 @@ export function createExclusionChecker(patterns: (RegExp | string)[], objectType
 export function extractObjectNames(query: string): string[] {
   const objectNames: string[] = [];
   
-  const fromMatch = query.match(/FROM\s+([a-zA-Z0-9_."]+)/gi);
-  if (fromMatch) {
-    for (const match of fromMatch) {
-      const name = match.replace(/FROM\s+/i, '').trim();
+  const fromMatch = query.matchAll(/FROM\s+(?:(?:JOIN\s+)?(?:INNER|LEFT|RIGHT|OUTER|FULL)?\s+)?([a-zA-Z0-9_."]+)/gi);
+  for (const match of fromMatch) {
+    const name = match[1].replace(/[`"]/g, '').trim();
+    if (name && !name.startsWith('(')) {
       objectNames.push(name);
     }
   }
   
-  const intoMatch = query.match(/INTO\s+([a-zA-Z0-9_."]+)/gi);
-  if (intoMatch) {
-    for (const match of intoMatch) {
-      const name = match.replace(/INTO\s+/i, '').trim();
+  const intoMatch = query.matchAll(/INTO\s+([a-zA-Z0-9_."]+)/gi);
+  for (const match of intoMatch) {
+    const name = match[1].replace(/[`"]/g, '').trim();
+    if (name) {
       objectNames.push(name);
     }
   }
   
-  const tableMatch = query.match(/TABLE\s+([a-zA-Z0-9_."]+)/gi);
-  if (tableMatch) {
-    for (const match of tableMatch) {
-      const name = match.replace(/TABLE\s+/i, '').trim();
+  const tableMatch = query.matchAll(/(?:CREATE|ALTER|DROP)\s+TABLE\s+([a-zA-Z0-9_."]+)/gi);
+  for (const match of tableMatch) {
+    const name = match[1].replace(/[`"]/g, '').trim();
+    if (name) {
       objectNames.push(name);
     }
   }

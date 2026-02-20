@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { z } from 'zod';
 import { mkdir, writeFile, readFile, stat } from 'fs/promises';
 import { join, dirname } from 'path';
@@ -5,6 +6,14 @@ import type { QueryToolResult, ErrorResponse } from '../types.js';
 import { getConfig } from '../config.js';
 import { createExclusionChecker } from '../metadata-proxy/index.js';
 import { executeSnowCLI } from '../command-executor.js';
+
+/**
+ * Compute SHA-256 hash of content for staleness comparison.
+ * Uses Node.js crypto module for collision-resistant hashing.
+ */
+function computeHash(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
+}
 
 const SyncObjectsSchema = z.object({
   connection: z.string().optional().describe('Connection name from snow CLI config'),
@@ -136,16 +145,6 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function simpleHash(content: string): string {
-  let hash = 0;
-  for (let i = 0; i < content.length; i++) {
-    const char = content.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash.toString(16);
 }
 
 export async function syncObjectsTool(input: unknown): Promise<QueryToolResult | ErrorResponse> {
@@ -493,8 +492,8 @@ export async function checkStalenessTool(input: unknown): Promise<QueryToolResul
     const localDDL = await readFile(localPath, 'utf-8');
     
     // Compare hashes
-    const currentHash = simpleHash(currentDDL);
-    const localHash = simpleHash(localDDL);
+    const currentHash = computeHash(currentDDL);
+    const localHash = computeHash(localDDL);
     
     const isStale = currentHash !== localHash;
     

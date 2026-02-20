@@ -13,6 +13,7 @@ const ExecuteDDLSchema = z.object({
 const DDL_PATTERNS = {
   CREATE_TABLE: /CREATE\s+TABLE/i,
   CREATE_VIEW: /CREATE\s+(OR\s+REPLACE\s+)?VIEW/i,
+  CREATE_MATERIALIZED_VIEW: /CREATE\s+(OR\s+REPLACE\s+)?MATERIALIZED\s+VIEW/i,
   CREATE_FUNCTION: /CREATE\s+(OR\s+REPLACE\s+)?FUNCTION/i,
   CREATE_PROCEDURE: /CREATE\s+(OR\s+REPLACE\s+)?PROCEDURE/i,
   CREATE_SCHEMA: /CREATE\s+SCHEMA/i,
@@ -23,6 +24,7 @@ const DDL_PATTERNS = {
   ALTER_SCHEMA: /ALTER\s+SCHEMA/i,
   DROP_TABLE: /DROP\s+TABLE/i,
   DROP_VIEW: /DROP\s+VIEW/i,
+  DROP_MATERIALIZED_VIEW: /DROP\s+MATERIALIZED\s+VIEW/i,
   DROP_FUNCTION: /DROP\s+FUNCTION/i,
   DROP_PROCEDURE: /DROP\s+PROCEDURE/i,
   DROP_SCHEMA: /DROP\s+SCHEMA/i,
@@ -44,14 +46,13 @@ function createErrorResponse(error: string, message: string, code: string): Erro
 
 /**
  * Extract object names from DDL statements
- * This is a heuristic approach - we look for common patterns
+ * Handles quoted identifiers, qualified names, and all object types
  */
 function extractObjectNames(ddl: string): string[] {
   const objects: string[] = [];
   
-  // Match patterns like: CREATE TABLE schema.table_name, CREATE VIEW db.schema.view_name, etc.
   const createMatches = ddl.matchAll(
-    /(?:CREATE|ALTER|DROP)\s+(?:OR\s+REPLACE\s+)?(?:TABLE|VIEW|FUNCTION|PCEDURE|SCHEMA|DATABASE|TASK|STAGE)\s+([a-zA-Z0-9_.`"]+\.[a-zA-Z0-9_.`"]+\.[a-zA-Z0-9_.`"]+|[a-zA-Z0-9_.`"]+\.[a-zA-Z0-9_.`"]+|[a-zA-Z0-9_]+)/gi
+    /(?:CREATE|ALTER|DROP)\s+(?:OR\s+REPLACE\s+)?(?:TABLE|VIEW|FUNCTION|PROCEDURE|SCHEMA|DATABASE|TASK|STAGE|MATERIALIZED\s+VIEW)\s+([a-zA-Z0-9_.`"]+\.[a-zA-Z0-9_.`"]+\.[a-zA-Z0-9_.`"]+|[a-zA-Z0-9_.`"]+\.[a-zA-Z0-9_.`"]+|[a-zA-Z0-9_]+)/gi
   );
   
   for (const match of createMatches) {
@@ -61,7 +62,7 @@ function extractObjectNames(ddl: string): string[] {
     }
   }
   
-  return objects;
+  return [...new Set(objects)];
 }
 
 /**

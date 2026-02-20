@@ -8,7 +8,12 @@
     "build": "tsc",
     "start": "node dist/mcp/index.js",
     "dev": "tsx src/mcp/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/mcp/tests/**/*.test.ts",
+    "test:unit": "tsx --test src/mcp/tests/unit/**/*.test.ts",
+    "test:tools": "tsx --test src/mcp/tests/tools/**/*.test.ts",
+    "test:security": "tsx --test src/mcp/tests/security/**/*.test.ts",
+    "test:integration": "tsx --test src/mcp/tests/integration/**/*.test.ts"
   },
   "keywords": [
     "mcp",

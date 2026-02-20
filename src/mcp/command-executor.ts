@@ -3,9 +3,12 @@ import type { CLIExecutionOptions, CLIResult } from './types.js';
 
 const SNOW_CLI_COMMAND = 'snow';
 
+const DEFAULT_TIMEOUT_MS = 30000;
+
 export async function executeSnowCLI(
   args: string[],
-  options: CLIExecutionOptions = {}
+  options: CLIExecutionOptions = {},
+  timeoutMs: number = DEFAULT_TIMEOUT_MS
 ): Promise<CLIResult> {
   return new Promise((resolve) => {
     const spawnArgs: string[] = [];
@@ -30,6 +33,18 @@ export async function executeSnowCLI(
     
     let stdout = '';
     let stderr = '';
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    
+    if (timeoutMs > 0) {
+      timeoutHandle = setTimeout(() => {
+        proc.kill('SIGTERM');
+        resolve({
+          stdout,
+          stderr: stderr || 'Command timed out',
+          exitCode: 124,
+        });
+      }, timeoutMs);
+    }
     
     proc.stdout?.on('data', (data) => {
       stdout += data.toString();
@@ -40,6 +55,9 @@ export async function executeSnowCLI(
     });
     
     proc.on('close', (code) => {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
       resolve({
         stdout,
         stderr,
@@ -48,6 +66,9 @@ export async function executeSnowCLI(
     });
     
     proc.on('error', (err) => {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
       resolve({
         stdout: '',
         stderr: err.message,
