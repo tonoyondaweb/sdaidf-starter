@@ -77,6 +77,10 @@ export function loadConfig(configPath?: string): ProjectConfig {
         patterns: validated.exclusions.patterns.map(p => new RegExp(p, 'i')),
         objectTypes: validated.exclusions.objectTypes,
       },
+      snowcli: {
+        ...validated.snowcli,
+        connection: process.env.SNOWFLAKE_CONNECTION || validated.snowcli.connection || 'dev',
+      },
     };
     
     cachedConfig = config;
