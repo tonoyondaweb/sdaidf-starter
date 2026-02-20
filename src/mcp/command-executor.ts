@@ -34,6 +34,10 @@ export async function executeSnowCLI(
     
     spawnArgs.push(...args);
     
+    if (options.connection) {
+      spawnArgs.push('--connection', options.connection);
+    }
+    
     const proc = spawn(SNOW_CLI_COMMAND, spawnArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -109,11 +113,34 @@ export async function executeSnowCLI(
 }
 
 export async function executeSQL(query: string, options: CLIExecutionOptions = {}): Promise<CLIResult> {
-  return executeSnowCLI(['sql', '-q', query], options);
+  const compoundQuery = `${query}; SELECT LAST_QUERY_ID() as query_id`;
+  const result = await executeSnowCLI(['sql', '--format', 'json', '-q', compoundQuery], options);
+  
+  let queryId: string | undefined;
+  if (result.stdout) {
+    try {
+      const parsed = JSON.parse(result.stdout);
+      if (Array.isArray(parsed) && parsed.length >= 2) {
+        const lastResult = parsed[parsed.length - 1];
+        if (Array.isArray(lastResult) && lastResult.length > 0 && lastResult[0].QUERY_ID) {
+          queryId = lastResult[0].QUERY_ID;
+        }
+      }
+    } catch { 
+      void 0; 
+    }
+  }
+  
+  if (result.queryMetadata) {
+    result.queryMetadata.queryId = queryId;
+    result.queryMetadata.queryOutput = result.stdout;
+  }
+  
+  return result;
 }
 
 export async function executeDDL(ddl: string, options: CLIExecutionOptions = {}): Promise<CLIResult> {
-  return executeSnowCLI(['sql', '-q', ddl], options);
+  return executeSnowCLI(['sql', '--format', 'json', '-q', ddl], options);
 }
 
 export async function listObjects(

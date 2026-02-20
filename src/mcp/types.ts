@@ -41,6 +41,7 @@ export interface QueryMetadata {
   connectionName: string;
   timestamp: string;
   executionTimeMs?: number;
+  queryOutput?: string;
 }
 
 export interface CLIResult {
