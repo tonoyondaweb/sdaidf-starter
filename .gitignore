@@ -52,6 +52,7 @@ agent/backups/*
 .env
 .env.local
 .secrets/
+agents.md
 
 # Directories to exclude from git push
 .opencode/node_modules/
