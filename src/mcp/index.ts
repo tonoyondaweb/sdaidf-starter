@@ -4,6 +4,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { loadConfig } from './config.js';
 import { executeSqlTool, executeScalarTool } from './tools/query-tools.js';
 import { listObjectsTool, describeObjectTool, getDDLTool } from './tools/discovery-tools.js';
+import { getLineageTool, getDependenciesTool } from './tools/lineage-tools.js';
 
 const server = new Server(
   {
@@ -153,6 +154,74 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['objectType', 'objectName'],
         },
       },
+      {
+        name: 'get_lineage',
+        description: 'Get upstream/downstream dependencies for a Snowflake object using SNOWFLAKE.CORE.OBJECT_DEPENDENCIES',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            objectName: {
+              type: 'string',
+              description: 'Name of the object',
+            },
+            objectType: {
+              type: 'string',
+              enum: ['table', 'view', 'materialized_view'],
+              description: 'Type of object (table, view, materialized_view)',
+            },
+            database: {
+              type: 'string',
+              description: 'Database name',
+            },
+            schema: {
+              type: 'string',
+              description: 'Schema name',
+            },
+            direction: {
+              type: 'string',
+              enum: ['upstream', 'downstream', 'both'],
+              default: 'both',
+              description: 'Direction of dependencies to fetch',
+            },
+            connection: {
+              type: 'string',
+              description: 'Connection name from snow CLI config',
+            },
+          },
+          required: ['objectName', 'objectType'],
+        },
+      },
+      {
+        name: 'get_dependencies',
+        description: 'Get direct dependencies for a view, materialized view, function, or procedure',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            objectName: {
+              type: 'string',
+              description: 'Name of the object',
+            },
+            objectType: {
+              type: 'string',
+              enum: ['view', 'materialized_view', 'function', 'procedure'],
+              description: 'Type of object',
+            },
+            database: {
+              type: 'string',
+              description: 'Database name',
+            },
+            schema: {
+              type: 'string',
+              description: 'Schema name',
+            },
+            connection: {
+              type: 'string',
+              description: 'Connection name from snow CLI config',
+            },
+          },
+          required: ['objectName', 'objectType'],
+        },
+      },
     ],
   };
 });
@@ -185,6 +254,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<{ conte
       case 'get_ddl': {
         const ddlResult = await getDDLTool(args);
         return ddlResult as { content: Array<{ type: string; text: string }> };
+      }
+      
+      case 'get_lineage': {
+        const lineageResult = await getLineageTool(args);
+        return lineageResult as { content: Array<{ type: string; text: string }> };
+      }
+      
+      case 'get_dependencies': {
+        const depsResult = await getDependenciesTool(args);
+        return depsResult as { content: Array<{ type: string; text: string }> };
       }
       
       default:
