@@ -1,0 +1,27 @@
+project:
+  name: sdaidf-snowflake-project
+  version: "1.0"
+
+exclusions:
+  patterns:
+    - "^PROD_"
+    - "_PROD$"
+    - "_BACKUP$"
+    - "_ARCHIVE$"
+    - "^SYSTEM_"
+  objectTypes:
+    - "SNAPSHOT"
+
+snowcli:
+  connection: "dev"
+  defaults:
+    warehouse: "COMPUTE_WH"
+    role: "SYSADMIN"
+
+guardrail:
+  maxScalarRows: 1000
+  variantAnalysis:
+    sampleSize: 100
+
+sync:
+  targetDir: "./src"

@@ -1,0 +1,35 @@
+{
+  "name": "snow-cli-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server wrapping Snowflake CLI with metadata-only proxy",
+  "main": "dist/mcp/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/mcp/index.js",
+    "dev": "tsx src/mcp/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "snowflake",
+    "mcp-server",
+    "metadata-proxy"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.24.0",
+    "yaml": "^2.6.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
