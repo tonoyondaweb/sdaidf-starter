@@ -13,7 +13,9 @@
     "test:unit": "tsx --test src/mcp/tests/unit/**/*.test.ts",
     "test:tools": "tsx --test src/mcp/tests/tools/**/*.test.ts",
     "test:security": "tsx --test src/mcp/tests/security/**/*.test.ts",
-    "test:integration": "tsx --test src/mcp/tests/integration/**/*.test.ts"
+    "test:integration": "tsx --test src/mcp/tests/integration/**/*.test.ts",
+    "test:log": "tsx src/mcp/tests/run-tests.ts",
+    "test:log:live": "RUN_INTEGRATION_TESTS=true tsx src/mcp/tests/run-tests.ts"
   },
   "keywords": [
     "mcp",
