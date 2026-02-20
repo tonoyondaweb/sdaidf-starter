@@ -3,6 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig } from './config.js';
 import { executeSqlTool, executeScalarTool } from './tools/query-tools.js';
+import { listObjectsTool, describeObjectTool, getDDLTool } from './tools/discovery-tools.js';
 
 const server = new Server(
   {
@@ -60,6 +61,98 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['query'],
         },
       },
+      {
+        name: 'list_objects',
+        description: 'List Snowflake objects by type (tables, views, procedures, etc.)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            objectType: {
+              type: 'string',
+              enum: ['database', 'schema', 'table', 'view', 'materialized_view', 'function', 'procedure', 'stage', 'file_format', 'task', 'stream', 'warehouse', 'compute_pool', 'role', 'user', 'network_rule', 'integration', 'secret', 'tag'],
+              description: 'Type of object to list',
+            },
+            database: {
+              type: 'string',
+              description: 'Database name',
+            },
+            schema: {
+              type: 'string',
+              description: 'Schema name',
+            },
+            like: {
+              type: 'string',
+              description: 'Pattern to match object names',
+            },
+            connection: {
+              type: 'string',
+              description: 'Connection name from snow CLI config',
+            },
+          },
+          required: ['objectType'],
+        },
+      },
+      {
+        name: 'describe_object',
+        description: 'Get detailed metadata about a Snowflake object (columns, properties)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            objectType: {
+              type: 'string',
+              enum: ['database', 'schema', 'table', 'view', 'materialized_view', 'function', 'procedure', 'stage', 'file_format', 'task', 'stream', 'warehouse', 'compute_pool', 'role', 'user', 'network_rule', 'integration', 'secret', 'tag'],
+              description: 'Type of object to describe',
+            },
+            objectName: {
+              type: 'string',
+              description: 'Name of the object',
+            },
+            database: {
+              type: 'string',
+              description: 'Database name',
+            },
+            schema: {
+              type: 'string',
+              description: 'Schema name',
+            },
+            connection: {
+              type: 'string',
+              description: 'Connection name from snow CLI config',
+            },
+          },
+          required: ['objectType', 'objectName'],
+        },
+      },
+      {
+        name: 'get_ddl',
+        description: 'Retrieve CREATE DDL statement for a Snowflake object',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            objectType: {
+              type: 'string',
+              description: 'Type of object (TABLE, VIEW, PROCEDURE, FUNCTION, SCHEMA, DATABASE)',
+            },
+            objectName: {
+              type: 'string',
+              description: 'Name of the object',
+            },
+            database: {
+              type: 'string',
+              description: 'Database name',
+            },
+            schema: {
+              type: 'string',
+              description: 'Schema name',
+            },
+            connection: {
+              type: 'string',
+              description: 'Connection name from snow CLI config',
+            },
+          },
+          required: ['objectType', 'objectName'],
+        },
+      },
     ],
   };
 });
@@ -77,6 +170,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<{ conte
       case 'execute_scalar': {
         const result = await executeScalarTool(args);
         return result as { content: Array<{ type: string; text: string }> };
+      }
+      
+      case 'list_objects': {
+        const listResult = await listObjectsTool(args);
+        return listResult as { content: Array<{ type: string; text: string }> };
+      }
+      
+      case 'describe_object': {
+        const describeResult = await describeObjectTool(args);
+        return describeResult as { content: Array<{ type: string; text: string }> };
+      }
+      
+      case 'get_ddl': {
+        const ddlResult = await getDDLTool(args);
+        return ddlResult as { content: Array<{ type: string; text: string }> };
       }
       
       default:
