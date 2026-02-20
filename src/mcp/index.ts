@@ -5,6 +5,8 @@ import { loadConfig } from './config.js';
 import { executeSqlTool, executeScalarTool } from './tools/query-tools.js';
 import { listObjectsTool, describeObjectTool, getDDLTool } from './tools/discovery-tools.js';
 import { getLineageTool, getDependenciesTool } from './tools/lineage-tools.js';
+import { syncObjectsTool, checkStalenessTool } from './tools/sync-tools.js';
+import { executeDDLTool } from './tools/ddl-tools.js';
 
 const server = new Server(
   {
@@ -222,6 +224,116 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['objectName', 'objectType'],
         },
       },
+      {
+        name: 'sync_objects',
+        description: 'Orchestrate discovery tools to build local object repository',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            connection: {
+              type: 'string',
+              description: 'Connection name from snow CLI config',
+            },
+            targetDir: {
+              type: 'string',
+              description: 'Target directory for sync output',
+            },
+            includeDatabases: {
+              type: 'boolean',
+              default: true,
+              description: 'Include databases in sync',
+            },
+            includeSchemas: {
+              type: 'boolean',
+              default: true,
+              description: 'Include schemas in sync',
+            },
+            includeTables: {
+              type: 'boolean',
+              default: true,
+              description: 'Include tables in sync',
+            },
+            includeViews: {
+              type: 'boolean',
+              default: true,
+              description: 'Include views in sync',
+            },
+            includeFunctions: {
+              type: 'boolean',
+              default: false,
+              description: 'Include functions in sync',
+            },
+            includeProcedures: {
+              type: 'boolean',
+              default: false,
+              description: 'Include procedures in sync',
+            },
+            includeStages: {
+              type: 'boolean',
+              default: false,
+              description: 'Include stages in sync',
+            },
+            includeTasks: {
+              type: 'boolean',
+              default: false,
+              description: 'Include tasks in sync',
+            },
+          },
+          required: ['targetDir'],
+        },
+      },
+      {
+        name: 'check_staleness',
+        description: 'Compare local DDL with remote to detect changes',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            objectName: {
+              type: 'string',
+              description: 'Name of the object to check',
+            },
+            objectType: {
+              type: 'string',
+              description: 'Type of object (table, view, schema, database, etc.)',
+            },
+            localPath: {
+              type: 'string',
+              description: 'Path to local DDL file',
+            },
+            database: {
+              type: 'string',
+              description: 'Database name',
+            },
+            schema: {
+              type: 'string',
+              description: 'Schema name',
+            },
+            connection: {
+              type: 'string',
+              description: 'Connection name from snow CLI config',
+            },
+          },
+          required: ['objectName', 'objectType', 'localPath'],
+        },
+      },
+      {
+        name: 'execute_ddl',
+        description: 'Execute CREATE/ALTER/DROP statements for Snowflake objects',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            ddl: {
+              type: 'string',
+              description: 'CREATE/ALTER/DROP statement to execute',
+            },
+            connection: {
+              type: 'string',
+              description: 'Connection name from snow CLI config',
+            },
+          },
+          required: ['ddl'],
+        },
+      },
     ],
   };
 });
@@ -264,6 +376,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<{ conte
       case 'get_dependencies': {
         const depsResult = await getDependenciesTool(args);
         return depsResult as { content: Array<{ type: string; text: string }> };
+      }
+      
+      case 'sync_objects': {
+        const syncResult = await syncObjectsTool(args);
+        return syncResult as { content: Array<{ type: string; text: string }> };
+      }
+      
+      case 'check_staleness': {
+        const stalenessResult = await checkStalenessTool(args);
+        return stalenessResult as { content: Array<{ type: string; text: string }> };
+      }
+      
+      case 'execute_ddl': {
+        const ddlResult = await executeDDLTool(args);
+        return ddlResult as { content: Array<{ type: string; text: string }> };
       }
       
       default:
